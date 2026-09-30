@@ -293,6 +293,14 @@ inline AbAnalysis abAnalyze(const Pos& root, double seconds, int threads, int mu
                     break;
                 }
         }
+        // the value of the position (best move) is smoothed with the previous iteration's
+        // best value even when the best move changed
+        {
+            const RootResult& pb = res.moves[0];
+            RootResult& nb = next[0];
+            if (nb.exact && pb.exact && std::abs(nb.score) < WIN / 2 && std::abs(pb.score) < WIN / 2)
+                nb.display = (nb.score + pb.score) / 2;
+        }
         res.moves = next;
         res.depth = depth;
         if (next[0].exact && next[0].score >= WIN / 2) break;  // proven win found

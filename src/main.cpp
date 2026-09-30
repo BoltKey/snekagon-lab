@@ -480,6 +480,41 @@ int main(int argc, char** argv) {
                r.value == -9 ? "unknown" : std::to_string(r.value).c_str(), known, r.perMove.size(), (unsigned long long)r.nodes, r.seconds);
         for (auto& pm : r.perMove)
             if (pm.second != -9) printf("  %-22s %s\n", moveStr(pm.first).c_str(), pm.second > 0 ? "win" : pm.second < 0 ? "loss" : "draw");
+    } else if (mode == "evalexplain") {
+        // snek evalexplain <moves...>: feature values and logit contributions for every position
+        // (env WEIGHTS=<file> to use a weights file instead of the compiled-in set)
+        if (getenv("WEIGHTS")) {
+            if (!loadWeights(getenv("WEIGHTS"), 1)) return 1;
+            for (int i = 0; i < NFEAT; i++) EW[0][i] = EW[1][i];
+            EHEAD[0] = EHEAD[1];
+        }
+        Pos s = Pos::start();
+        std::vector<Move> moves;
+        for (int i = 2; i < argc; i++) { Move m; if (!parseMove(argv[i], m)) return 1; moves.push_back(m); }
+        printf("%-12s", "feature");
+        for (size_t k = 1; k <= moves.size(); k++) printf("  ply%-2zu(%s)", k, k % 2 ? "B" : "R");
+        printf("\n");
+        std::vector<std::array<double, NFEAT>> xs;
+        std::vector<int> stms;
+        for (size_t k = 0; k < moves.size(); k++) {
+            s.play(moves[k]);
+            double x[NFEAT];
+            featureVector(s, x);
+            std::array<double, NFEAT> a;
+            for (int i = 0; i < NFEAT; i++) a[i] = x[i];
+            xs.push_back(a);
+            stms.push_back(s.stm);
+        }
+        for (int i = 0; i < NFEAT; i++) {
+            printf("%-12s", FEAT_NAMES[i]);
+            for (auto& a : xs) printf("  %4.0f %+5.2f", a[i], a[i] * EW[0][i]);
+            printf("\n");
+        }
+        printf("%-12s", "logit(stm)");
+        for (auto& a : xs) { double z = 0; for (int i = 0; i < NFEAT; i++) z += a[i] * EW[0][i]; printf("  %10.2f", z); }
+        printf("\n%-12s", "red win %");
+        for (size_t k = 0; k < xs.size(); k++) { double z = 0; for (int i = 0; i < NFEAT; i++) z += xs[k][i] * EW[0][i]; double p = 1 / (1 + std::exp(-z)); printf("  %9.1f%%", 100 * (stms[k] == 0 ? p : 1 - p)); }
+        printf("\n");
     } else if (mode == "evaltrace") {
         // snek evaltrace <maxDepth> <seconds> <threads> <moves...>
         // For every position of the game: static eval and fixed-depth search results,
@@ -492,12 +527,21 @@ int main(int argc, char** argv) {
         Pos s = Pos::start();
         std::vector<Move> moves;
         for (int i = 5; i < argc; i++) { Move m; if (!parseMove(argv[i], m)) { printf("bad move %s\n", argv[i]); return 1; } moves.push_back(m); }
+        std::vector<double> uiSecs;
+        if (getenv("UI_SECS")) { std::stringstream ss(getenv("UI_SECS")); std::string t; while (std::getline(ss, t, ',')) uiSecs.push_back(std::atof(t.c_str())); }
         printf("ply stm  static");
+        for (double us : uiSecs) printf("  ui%.0fs  ", us);
         for (int d = 1; d <= maxD; d++) printf("   d%d  ", d);
         printf("  exact   move played\n");
         for (size_t k = 0; k <= moves.size() && !s.over(); k++) {
             auto red = [&](int score) { double p = scoreToWinProb(score); return s.stm == 0 ? p : 1 - p; };
             printf("%3d  %s  %5.1f%%", (int)s.ply, s.stm == 0 ? "R" : "B", 100 * red(evaluate(s)));
+            if (s.ply > 0 && uiSecs.size())
+                for (double us : uiSecs) {  // what the UI shows: time-limited search, smoothed score
+                    AbAnalysis a = abAnalyze(s, us, threads, 1);
+                    const RootResult& b = a.moves[0];
+                    printf("  %5.1f%%", 100 * red(b.exact ? b.display : b.score));
+                }
             if (s.ply > 0)
                 for (int d = 1; d <= maxD; d++) {
                     AbAnalysis a = abAnalyze(s, secs, threads, 1, d);

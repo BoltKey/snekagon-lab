@@ -20,7 +20,11 @@ piece covering the cell with the mouse wheel / `R` / right click; click to play.
 - **Engine táhni** – engine move (engine selectable: *alfa-beta* = current engine, *MCTS* = first version).
 - **Analyzuj** – ranked moves with win probability for the side to move (hover = preview, click = play).
 - **Vyřešit** – exact parallel solve of the current position (win/draw/loss per move) within a time limit.
-- checkboxes let the engine play either side; click a move in the history to jump back.
+- **živé hodnocení** – every shown position (also while browsing the game) gets a 1 s analysis, cached per
+  position, so going back and forth is instant; "Analyzuj" with a longer time replaces the cached one.
+- game navigation: ⏮ ◀ ▶ ⏭, arrow keys, Home/End, or click a move in the history. The whole game is kept;
+  playing a different move in an earlier position starts a new branch.
+- checkboxes let the engine play either side.
 
 ## Rules as implemented: [RULES.md](RULES.md)
 
@@ -30,7 +34,7 @@ piece covering the cell with the mouse wheel / `R` / right click; click to play.
 |---|---|
 | move generation (`core.hpp`) | for each of the 40 piece orientations the legality of **all anchor cells at once** is an AND/OR of shifted 128-bit boards (no-overlap, isolation for new snakes, own-degree ≤ 2, no sharp turns, touching own). ~2.6 µs for a full move list, perft 3 in 0.95 s (4.3× faster than v1). |
 | length bounds (`snakeBounds`) | **sound** lower/upper bound of each player's final longest snake: a player can never again occupy a cell next to its own snake body, so the final snake lies in one cluster of *own cells ∪ growable cells*; new cells ≤ subset-sum fit of the remaining pieces into the growable regions. Detects enclosed snakes immediately. |
-| evaluation (`eval.hpp`) | features from a Tron-style Voronoi split (who reaches which cell first from its growable snake ends), per-snake territory, bounds, number of snakes…; **logistic regression fitted on 28 580 positions whose exact result was computed by the solver** (`tools/fit_eval.py`). Hold-out: predicts the winner in 85 % of decisive positions (hand-made eval: 72 %). |
+| evaluation (`eval.hpp`) | features from a Tron-style Voronoi split (who reaches which cell first from its growable snake ends), per-snake territory, bounds, number of snakes…; **logistic regression fitted on ~68 000 positions whose exact result was computed by the solver** (`tools/fit_eval.py`). Hold-out: predicts the winner in 87–90 % of decisive positions (hand-made eval: 72 %). |
 | search (`search.hpp`) | iterative-deepening PVS α-β, TT on symmetry-canonical keys, killers/history, forward pruning (best 24 by 1-ply eval at depth ≥ 2), bound cutoffs, the exact solver once ≤ 6 pieces remain; parallel over root moves with multi-PV. Depth 4–5 in 3 s early in the game. |
 | exact solver (`solver.hpp`) | negamax over {loss, draw, win}, TT, bound cutoffs, TT/killer/history ordering + learned-eval ordering when ≥ 7 pieces remain; `parallelSolve` splits root moves over threads. |
 
@@ -46,6 +50,34 @@ The hand-made eval lost because it treated all own tiles in one region as if the
 snake – the engine scattered pieces. The fitted weights confirm it: *number of separate snakes* has a large
 negative weight, *best single snake + its own territory* and the *sound upper bound* are the strongest positive
 features, and the side to move has a big tempo advantage.
+
+### Side to move, "jumping" evaluation
+
+The evaluation used to swing from ~90 % to ~10 % between consecutive plies. Diagnosis (`snek evaltrace`,
+`snek evalexplain`):
+
+1. **Tempo in the static evaluation.** A linear model cannot measure what a move just gained, so it carries the
+   value of having the move in explicit terms (bias for the side to move, `stmIsP1`, remaining-cells difference):
+   ≈ +0.6 … +1 logit for whoever is to move. Part of it is real (even in good play the side to move wins 57 %),
+   part was an artefact of the first training data (random moves → the move before a position was often a
+   blunder → side to move won 69 %). Data from (almost) greedy play reduced the tempo terms.
+2. **Odd/even search depth.** Leaves at even and odd depth have the opposite side to move, so the root value
+   flipped with the depth reached. The displayed value of the position is now the average of the best
+   scores of the last two iterations.
+3. **Opening out of the training range** (labels only from ply 5–6 on). Large open territories there
+   make the Voronoi head start of the side to move worth dozens of cells; player 2 before its first move had
+   "no snake" features (fixed). A per-ply calibration on 245 exactly solved ply-5 positions found *no*
+   over-confidence at ply 5 (best scale 1.18), so no shrinking is applied (`EVAL_PLY_SCALE` = 1).
+4. A real bug found on the way: forward pruning could report a **false forced win** (all searched replies
+   lost, but a pruned one saved the game). Fixed.
+
+Result on the self-play game used for diagnosis (red's win %, what the UI shows after 3 s vs exact):
+ply 4 66 % (red wins), ply 5 51 % (draw; before: a false "forced blue win"), ply 6+ 100 % (red wins).
+**Remaining:** in the opening (plies 1–4) the value still moves by about ±15 points depending on who is to
+move – fixing that needs a richer evaluation (e.g. a small network on the board) and opening labels.
+
+Training data now: 68k solver-labelled positions (`data/labels_*.csv`, newer files also store the position,
+so `snek refeature` can recompute features without re-solving).
 
 ## Solving – measurements
 

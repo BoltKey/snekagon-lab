@@ -122,6 +122,16 @@ inline void features(const Pos& s, PlayerFeat f[2], int head) {
             int v = popc(C) + std::min(t, x.rem);
             if (v > bestS || (v == bestS && t > x.singleTerr)) { bestS = v; x.singleOwn = popc(C); x.singleTerr = t; }
         }
+        if (!sh[c].own) {
+            // no snake yet (player 2 before its first move): describe the potential of a
+            // fresh snake instead of "nothing" - this situation is not in the training data
+            BB iso = s.empty() & ~expand(occ);
+            x.fresh = 0;
+            while (iso) { BB r = flood(bit(lsb(iso)), iso); iso &= ~r; x.fresh = std::max(x.fresh, popc(r)); }
+            x.singleTerr = x.bestTerr = std::min(x.fresh, 40);
+            x.comps = 1;
+            x.ends = x.liveEnds = 2;
+        }
     }
 }
 
@@ -179,6 +189,7 @@ inline double learnedLogit(const Pos& s) {
     featureVector(s, x);
     double z = 0;
     for (int i = 0; i < NFEAT; i++) z += EW[g_evalSet][i] * x[i];
+    if (g_evalSet == 0) z *= EVAL_PLY_SCALE[std::min<int>(s.ply, 15)];  // early-game calibration
     return z;
 }
 inline bool g_handEval = false;
