@@ -86,7 +86,7 @@ inline void features(const Pos& s, PlayerFeat f[2], int head) {
     BB occ = s.occ();
     for (int c = 0; c < 2; c++) {
         PlayerFeat& x = f[c];
-        x.L = longest(s.own[c]);
+        x.L = s.L[c];
         x.rem = remainingCells(s.avail[c]);
         x.pieces = pieceCount(s.avail[c]);
         x.terr = popc(claim[c]);
@@ -112,10 +112,8 @@ inline void features(const Pos& s, PlayerFeat f[2], int head) {
         // best single snake: |C| + territory reachable from its own ends
         x.singleOwn = x.L; x.singleTerr = 0; x.comps = 0;
         int bestS = -1;
-        BB b = sh[c].own;
-        while (b) {
-            BB C = componentOf(b, lsb(b));
-            b &= ~C;
+        for (int j = 0; j < s.ncomp[c]; j++) {
+            BB C = s.comp[c][j];
             x.comps++;
             BB seed = expand(C & sh[c].ends) & claim[c];
             int t = seed ? popc(flood(seed, claim[c])) : 0;
@@ -208,7 +206,7 @@ inline int evaluateHand(const Pos& s, EvalInfo* info) {
     voronoi(s, sh, claim);
     int est[2], L[2], terr[2];
     for (int c = 0; c < 2; c++) {
-        L[c] = longest(s.own[c]);
+        L[c] = s.L[c];
         terr[c] = popc(claim[c]);
     }
     for (int c = 0; c < 2; c++) est[c] = estimateFinal(s, c, sh[c], claim[c], claim[c ^ 1], L[c]);

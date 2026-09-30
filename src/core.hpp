@@ -16,6 +16,7 @@ typedef unsigned __int128 BB;
 constexpr int W = 11, R = 5, NIDX = 121, NCELLS = 91;
 constexpr int NPIECE = 8;
 constexpr int NSYM = 12;
+constexpr int SYM_PLY = 6;  // symmetry-canonical hashing up to this ply
 
 inline BB bit(int i) { return (BB)1 << i; }
 inline int popc(BB b) {
@@ -317,9 +318,26 @@ struct Pos {
     uint8_t stm = 0;     // 0 = player 1 (red / starts), 1 = player 2
     uint8_t passes = 0;  // consecutive passes
     uint8_t ply = 0;
-    uint64_t h[NSYM] = {};
+    uint64_t h[NSYM] = {};  // h[1..11] (symmetric variants) are maintained only while ply <= SYM_PLY
+    // snakes of each player, kept up to date by play(): component bitboards + longest length
+    BB comp[2][8];
+    uint8_t ncomp[2] = {0, 0};
+    uint8_t L[2] = {0, 0};
 
+    void initComps() {
+        for (int c = 0; c < 2; c++) {
+            ncomp[c] = 0; L[c] = 0;
+            BB b = own[c];
+            while (b) {
+                BB k = flood(bit(lsb(b)), b);
+                b &= ~k;
+                comp[c][ncomp[c]++] = k;
+                L[c] = std::max<int>(L[c], popc(k));
+            }
+        }
+    }
     void initHash() {
+        initComps();
         for (int t = 0; t < NSYM; t++) {
             uint64_t x = 0;
             for (int c = 0; c < 2; c++) {
@@ -339,8 +357,11 @@ struct Pos {
     uint8_t movable() const { return ply == 0 ? (avail[stm] & 1) : avail[stm]; }
 
     // canonical (symmetry-reduced) key; returns transform used via t
+    // Symmetry-canonical key near the root (where mirrored transpositions happen); deeper
+    // positions are practically never symmetric and use the plain hash.
     uint64_t key(int& t) const {
         t = 0;
+        if (ply > SYM_PLY) return h[0];
         for (int u = 1; u < NSYM; u++) if (h[u] < h[t]) t = u;
         return h[t];
     }
@@ -426,13 +447,25 @@ struct Pos {
             int p = mv.piece();
             own[stm] |= pl.m;
             avail[stm] &= ~(1u << p);
-            for (int t = 0; t < NSYM; t++) {
+            int nh = ply < SYM_PLY ? NSYM : 1;
+            for (int t = 0; t < nh; t++) {
                 uint64_t x = h[t] ^ T.zPiece[stm][p];
                 for (int j = 0; j < pl.n; j++) x ^= T.zCell[stm][T.perm[t][pl.c[j]]];
                 h[t] = x;
             }
+            // merge the snakes the piece touches
+            BB merged = pl.m;
+            int k = 0;
+            for (int j = 0; j < ncomp[stm]; j++) {
+                if (comp[stm][j] & pl.nb) merged |= comp[stm][j];
+                else comp[stm][k++] = comp[stm][j];
+            }
+            comp[stm][k++] = merged;
+            ncomp[stm] = (uint8_t)k;
+            L[stm] = std::max<int>(L[stm], popc(merged));
         }
-        for (int t = 0; t < NSYM; t++) h[t] ^= T.zStm;
+        int nh = ply < SYM_PLY ? NSYM : 1;
+        for (int t = 0; t < nh; t++) h[t] ^= T.zStm;
         stm ^= 1;
         ply++;
     }
@@ -464,31 +497,42 @@ inline int pieceCount(uint8_t av) { return __builtin_popcount(av); }
 //    piece lies inside one connected region of G, so the new cells in K are at most
 //    fit(sum over G-regions r in K of fit(|r|)).
 inline void snakeBounds(const Pos& s, int c, int& lb, int& ub) {
-    BB me = s.own[c];
-    lb = longest(me);
+    lb = s.L[c];
     uint8_t av = s.avail[c];
     if (!av) { ub = lb; return; }
+    BB me = s.own[c];
     Shape sh = shapeOf(me);
     BB G = s.empty() & ~expand(sh.full);
-    BB U = me | G;
-    ub = lb;
-    while (U) {
-        BB K = flood(bit(lsb(U)), U);
-        U &= ~K;
-        BB g = K & G;
-        if (!g) continue;
-        int cap = 0;
-        while (g) {
-            BB r = flood(bit(lsb(g)), g);
-            g &= ~r;
-            cap += T.fit[av][popc(r)];
-        }
-        int v = popc(K & me) + T.fit[av][std::min(cap, NIDX)];
-        ub = std::max(ub, v);
+    // clusters = growable regions joined through the snakes touching them. Regions are
+    // compact blobs (cheap floods); snakes are attached by adjacency, never flooded.
+    BB cl[NCELLS];
+    int own[NCELLS], cap[NCELLS], n = 0;
+    BB g = G;
+    while (g) {
+        BB r = flood(bit(lsb(g)), g);
+        g &= ~r;
+        cl[n] = r; own[n] = 0; cap[n] = T.fit[av][popc(r)]; n++;
     }
+    for (int j = 0; j < s.ncomp[c]; j++) {
+        BB cm = s.comp[c][j], nb = expand(cm);
+        int into = -1;
+        for (int i = 0; i < n; i++) {
+            if (i == into || !(cl[i] & nb)) continue;
+            if (into < 0) { into = i; continue; }
+            // the snake joins cluster i into cluster `into`; fill slot i with the last cluster
+            cl[into] |= cl[i]; own[into] += own[i]; cap[into] += cap[i];
+            n--;
+            cl[i] = cl[n]; own[i] = own[n]; cap[i] = cap[n];
+            if (into == n) into = i;
+            i--;
+        }
+        if (into >= 0) { cl[into] |= cm; own[into] += popc(cm); }
+    }
+    ub = lb;
+    for (int i = 0; i < n; i++) ub = std::max(ub, own[i] + T.fit[av][std::min(cap[i], NIDX)]);
 }
 inline int finalScore(const Pos& s) {  // from player 1's perspective: >0 player 1 wins
-    return longest(s.own[0]) - longest(s.own[1]);
+    return s.L[0] - s.L[1];
 }
 
 // ---- text notation ------------------------------------------------------------

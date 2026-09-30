@@ -1,0 +1,25 @@
+  0  value  1       2051852 nodes      2.5s
+  1  value  1      12273207 nodes     10.5s
+  2  value  1       3673273 nodes      3.4s
+  3  value  1       5732203 nodes      5.4s
+  4  value  1      27098879 nodes     22.9s
+  5  value  1       4630340 nodes      4.8s
+  6  value  1       6511142 nodes      5.7s
+  7  value  1       8048670 nodes      7.1s
+  8  value  1      32635428 nodes     26.2s
+  9  value  1       2642264 nodes      2.6s
+ 10  value  1      23851126 nodes     18.3s
+ 11  value  1      15774037 nodes     12.9s
+ 12  value  1      13095923 nodes     12.2s
+ 13  value  1       6922403 nodes      6.2s
+ 14  value  1       4751347 nodes      4.5s
+ 15  value  1       5095660 nodes      4.6s
+ 16  value  1      21011376 nodes     17.3s
+ 17  value  1      20869474 nodes     16.6s
+ 18  value  1      24884108 nodes     18.0s
+ 19  value  1        959595 nodes      1.1s
+ 20  value  1      31814885 nodes     23.3s
+ 21  value  1       4190445 nodes      4.0s
+ 22  value  1      38608937 nodes     26.1s
+ 23  value  1      43324010 nodes     27.0s
+TOTAL 24 positions: 360450584 nodes, 283.3 thread-seconds, 37.7 s wall (12 threads)

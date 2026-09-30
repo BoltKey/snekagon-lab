@@ -58,6 +58,28 @@ static Pos randomPosition(int plies, Rng& rng) {
     }
 }
 
+// Reference implementation of snakeBounds (floods over own cells + growable cells), used by
+// `verify` to check the fast version.
+static void snakeBoundsRef(const Pos& s, int c, int& lb, int& ub) {
+    BB me = s.own[c];
+    lb = longest(me);
+    uint8_t av = s.avail[c];
+    if (!av) { ub = lb; return; }
+    Shape sh = shapeOf(me);
+    BB G = s.empty() & ~expand(sh.full);
+    BB U = me | G;
+    ub = lb;
+    while (U) {
+        BB K = flood(bit(lsb(U)), U);
+        U &= ~K;
+        BB g = K & G;
+        if (!g) continue;
+        int cap = 0;
+        while (g) { BB r = flood(bit(lsb(g)), g); g &= ~r; cap += T.fit[av][popc(r)]; }
+        ub = std::max(ub, popc(K & me) + (int)T.fit[av][std::min(cap, NIDX)]);
+    }
+}
+
 // ---- training data rows ----------------------------------------------------------
 static std::string hex128(BB b) {
     char buf[40];
@@ -365,6 +387,17 @@ int main(int argc, char** argv) {
                     return 1;
                 }
                 if (s.hasMove() != !fast.empty()) { printf("HASMOVE MISMATCH\n"); return 1; }
+                for (int c = 0; c < 2; c++) {
+                    // incremental snakes == recomputed; fast bounds == reference (flood) bounds
+                    if (s.L[c] != longest(s.own[c])) { printf("LONGEST MISMATCH\n"); return 1; }
+                    BB u = 0;
+                    for (int j = 0; j < s.ncomp[c]; j++) u |= s.comp[c][j];
+                    if (u != s.own[c]) { printf("COMPONENT MISMATCH\n"); return 1; }
+                    int lb, ub, rlb, rub;
+                    snakeBounds(s, c, lb, ub);
+                    snakeBoundsRef(s, c, rlb, rub);
+                    if (lb != rlb || ub != rub) { printf("BOUNDS MISMATCH game %d ply %d: [%d,%d] vs ref [%d,%d]\n", g, (int)s.ply, lb, ub, rlb, rub); return 1; }
+                }
                 positions++;
                 hist.push_back(s);
                 // mix uniformly random and "grow own snake" moves so games get long snakes
@@ -508,6 +541,65 @@ int main(int argc, char** argv) {
                r.value == -9 ? "unknown" : std::to_string(r.value).c_str(), known, r.perMove.size(), (unsigned long long)r.nodes, r.seconds);
         for (auto& pm : r.perMove)
             if (pm.second != -9) printf("  %-22s %s\n", moveStr(pm.first).c_str(), pm.second > 0 ? "win" : pm.second < 0 ? "loss" : "draw");
+    } else if (mode == "benchset") {
+        // snek benchset <file> <threads>: exact solve of every position in the file (one move
+        // list per line). Threads take positions in order and keep their solver between
+        // positions, like parallelSolve does. Prints per-position and total cost.
+        std::ifstream in(argv[2]);
+        int threads = argc > 3 ? std::atoi(argv[3]) : 8;
+        std::vector<Pos> ps;
+        std::string line;
+        while (std::getline(in, line)) {
+            std::istringstream ls(line);
+            std::string tok;
+            Pos s = Pos::start();
+            bool ok = true, any = false;
+            while (ls >> tok) { Move m; if (!parseMove(tok, m) || !s.legalMove(m)) { ok = false; break; } s.play(m); any = true; }
+            if (ok && any) ps.push_back(s);
+        }
+        std::vector<int> val(ps.size());
+        std::vector<uint64_t> nod(ps.size());
+        std::vector<double> sec(ps.size());
+        std::atomic<size_t> next{0};
+        auto t0 = std::chrono::steady_clock::now();
+        std::vector<std::thread> th;
+        std::mutex profMu;
+        uint64_t profV[16] = {}, profT[16] = {}, profB[16] = {}, profE[16] = {};
+        int sharedLog2 = envInt("SOLVER_SHARED", 0);
+        std::shared_ptr<LTT> shared = sharedLog2 ? std::make_shared<LTT>(sharedLog2 - 1) : nullptr;
+        for (int w = 0; w < threads; w++)
+            th.emplace_back([&] {
+                std::unique_ptr<Solver> SP(shared ? new Solver(shared) : new Solver(22));
+                Solver& S = *SP;
+                for (;;) {
+                    size_t i = next++;
+                    if (i >= ps.size()) break;
+                    auto ts = std::chrono::steady_clock::now();
+                    val[i] = S.solve(ps[i]);
+                    nod[i] = S.nodes;
+                    {
+                        std::lock_guard<std::mutex> lk(profMu);
+                        for (int p = 0; p < 16; p++) { profV[p] += S.pVisit[p]; profT[p] += S.pTT[p]; profB[p] += S.pBound[p]; profE[p] += S.pExp[p]; }
+                        std::fill(S.pVisit, S.pVisit + 16, 0); std::fill(S.pTT, S.pTT + 16, 0);
+                        std::fill(S.pBound, S.pBound + 16, 0); std::fill(S.pExp, S.pExp + 16, 0);
+                    }
+                    sec[i] = std::chrono::duration<double>(std::chrono::steady_clock::now() - ts).count();
+                }
+            });
+        for (auto& t : th) t.join();
+        double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        uint64_t tn = 0;
+        double ts = 0;
+        for (size_t i = 0; i < ps.size(); i++) {
+            printf("%3zu  value %2d  %12llu nodes  %7.1fs\n", i, val[i], (unsigned long long)nod[i], sec[i]);
+            tn += nod[i]; ts += sec[i];
+        }
+        printf("TOTAL %zu positions: %llu nodes, %.1f thread-seconds, %.1f s wall (%d threads)\n", ps.size(), (unsigned long long)tn, ts, wall, threads);
+        if (getenv("PROFILE")) {
+            printf("ply     visited    tt-cut  bound-cut  expanded\n");
+            for (int p = 0; p < 16; p++)
+                if (profV[p]) printf("%3d %11llu %9.1f%% %9.1f%% %9.1f%%\n", p, (unsigned long long)profV[p], 100.0 * profT[p] / profV[p], 100.0 * profB[p] / profV[p], 100.0 * profE[p] / profV[p]);
+        }
     } else if (mode == "evalexplain") {
         // snek evalexplain <moves...>: feature values and logit contributions for every position
         // (env WEIGHTS=<file> to use a weights file instead of the compiled-in set)

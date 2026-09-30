@@ -31,7 +31,7 @@ struct AbEntry {
 };
 
 inline int terminalScore(const Pos& s) {
-    int d = longest(s.own[s.stm]) - longest(s.own[s.stm ^ 1]);
+    int d = s.L[s.stm] - s.L[s.stm ^ 1];
     return d > 0 ? WIN + 100 * d : d < 0 ? -WIN + 100 * d : 0;
 }
 

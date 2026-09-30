@@ -105,21 +105,38 @@ Positions from **good play** (`snek solvepos`, engine self-play game in `results
 | ply 5 (blue to move) | **draw** – all 336 moves solved; the engine's actual move there loses | 173 M nodes, 73 s (6 threads) |
 | ply 4 (red to move) | **red wins** with `4B:93,94,102,103` (of 38 moves solved: 1 win, 4 draws, 33 losses); the engine played a drawing move | 1.2 G nodes, 157 s (14 threads) |
 
+### Centre opening: what is proven
+
+| position | result |
+|---|---|
+| `1:60 4B:16,27,28,39 4A:7,8,9,20 4I:15,25,35,45` (after 4 moves, red to move) | **red loses** – all 956 moves (pilot, ~10 thread-hours) |
+| `1:60 4B:16,27,28,39 4A:7,8,9,20` (after 3 moves, blue to move) | **blue wins** with `4I:15,25,35,45` |
+
+### Solver v3 (speed-up round)
+
+Benchmark `bench/ply5_blue_wins.txt` = 24 sub-positions of the pilot (ply 5, blue to move and winning),
+`snek benchset <file> <threads>`:
+
+| version | thread-seconds | wall, 16 threads |
+|---|---|---|
+| v2 | 510 | 61 s |
+| + 2-way lockless TT (work-preferred slot) | 478 | |
+| + incremental snakes in `Pos` (no flood fills for lengths), bounds that flood only the free regions, symmetric hashing only up to ply 6 | **274** | **35 s** |
+
+Tried and rejected (measured, no gain): enhanced transposition cutoffs, a TT shared by all threads, deeper
+learned-eval ordering (fewer nodes but the eval costs more than it saves), eval ordering only for the side
+that looks winning, a cheap single-region bound before the exact one, and "inert move" equivalence (a
+provably safe definition covers well under 1 % of moves). Profiling (`PROFILE=1 snek benchset …`) shows
+why big gains are hard: the winning side finds its move at the first try ~90 % of the time, so the search
+is already close to the minimal proof; the cost is the loser having to answer every move.
+
 ### Is a full solution feasible?
 
-The cost of a proof is dominated by the side that has to answer *every* move. If red (P1) wins, the proof
-needs one good red move at plies 0, 2, 4 and all of blue's replies at plies 1 and 3: about 180 (ply 1, after
-symmetry) × ~940 (ply 3) ≈ 1.7·10⁵ ply-4 positions. The one ply-4 position measured took ~37 core-minutes
-→ order of **10⁵ core-hours** for the whole proof with today's solver (less with shared TT, transpositions
-and the many blue moves that are easy to refute; more if the game is a draw, since then both "red cannot
-win" and "blue cannot win" have to be proven).
-
-So: not a laptop job, but within reach of engineering + a rented cluster (10⁴–10⁵ core-hours). Path:
-1. strengthen the engine (more solver-labelled data, richer eval) so the principal line is right,
-2. another ~10× in the solver: proof-number search (df-pn) at the top, shared TT, tighter bounds
-   (reachable space per snake end, geometric packing), endgame decomposition into independent regions,
-3. prove bottom-up along the principal line: solve ply-4 positions in bulk as independent jobs, store results,
-4. distribute – every (first move, blue reply) pair is an independent job.
+Solving the centre opening (value after `1:60`) if blue wins = one blue move + all 1589 red replies, each a
+ply-3/ply-4 problem like the pilot: ~1589 × ~5.5 thread-hours × (1.5–3 overhead) ≈ **1–3·10⁴ thread-hours**,
+i.e. roughly 1–3 months of this laptop (Ryzen 7 5800H, 16 threads) running 24/7, or ~1 day on 1000 cloud
+cores. Units are independent jobs (resumable, see `results/jobs/`), so any number of machines can share the
+work.
 
 ## Tools
 
@@ -132,7 +149,8 @@ So: not a laptop job, but within reach of engineering + a rented cluster (10⁴�
 | `snek solvepos <sec> <threads> <moves…>` | parallel exact solve of a position |
 | `snek solvebench <plies> <n> <sec> <threads>` | solver benchmark on random positions |
 | `snek selfplay <games> <sec> <threads>` | engine vs itself, prints the game |
-| `snek verify [games]` | fast move generator == reference checker, bounds never violated |
+| `snek verify [games]` | fast move generator == reference checker, incremental snakes and fast bounds == reference, bounds never violated |
+| `snek benchset <file> <threads>` | solver benchmark on a fixed position set (`PROFILE=1` prints per-ply statistics) |
 | `snek perft <d>`, `snek speed`, `snek info` | counting / micro-benchmarks |
 | `python ref/crosscheck.py [games]` | engine vs independent Python rules implementation |
 

@@ -1,6 +1,7 @@
 // Exact solver: negamax alpha-beta over {-1, 0, +1} (loss/draw/win for the side
 // to move), transposition table keyed by the symmetry-canonical hash, snake-length
-// bounds for early cutoffs, TT-move + killer + history move ordering.
+// bounds for early cutoffs, TT-move + killer + history + learned-eval move ordering,
+// enhanced transposition cutoffs (ETC). The TT is lockless and can be shared by threads.
 #pragma once
 #include <atomic>
 #include <chrono>
@@ -9,15 +10,46 @@
 #include "core.hpp"
 #include "eval.hpp"
 
-struct TTEntry {
-    uint64_t key;
-    int8_t lo, hi;  // value bounds (side to move)
-    int16_t best;   // best move gid in canonical frame (-1 none / pass)
+// Lockless 2-way transposition table. Each slot stores key^data and data, so an entry
+// torn by concurrent writes fails the key check instead of returning garbage.
+// Slot 0 of a bucket keeps the entry with the most work behind it, slot 1 is always replaced.
+struct LTT {
+    struct Slot { std::atomic<uint64_t> k{0}, d{0}; };
+    std::unique_ptr<Slot[]> s;
+    size_t nb;
+    uint64_t mask;
+    explicit LTT(int log2buckets) : s(new Slot[size_t(2) << log2buckets]), nb(size_t(1) << log2buckets), mask(nb - 1) {}
+    void clear() {
+        for (size_t i = 0; i < 2 * nb; i++) { s[i].k.store(0, std::memory_order_relaxed); s[i].d.store(0, std::memory_order_relaxed); }
+    }
+    static uint64_t pack(int lo, int hi, int best, int work) {
+        return uint64_t(lo + 2) | uint64_t(hi + 2) << 3 | uint64_t(best + 1) << 6 | uint64_t(work) << 22;
+    }
+    bool probe(uint64_t key, int& lo, int& hi, int& best) const {
+        size_t b = (key & mask) * 2;
+        for (int i = 0; i < 2; i++) {
+            uint64_t k = s[b + i].k.load(std::memory_order_relaxed), d = s[b + i].d.load(std::memory_order_relaxed);
+            if (d && (k ^ d) == key) {
+                lo = int(d & 7) - 2; hi = int(d >> 3 & 7) - 2; best = int(d >> 6 & 0xFFFF) - 1;
+                return true;
+            }
+        }
+        return false;
+    }
+    void store(uint64_t key, int lo, int hi, int best, int work) {
+        size_t b = (key & mask) * 2;
+        uint64_t d = pack(lo, hi, best, work);
+        uint64_t k0 = s[b].k.load(std::memory_order_relaxed), d0 = s[b].d.load(std::memory_order_relaxed);
+        int i = ((k0 ^ d0) == key || work >= int(d0 >> 22 & 63)) ? 0 : 1;
+        s[b + i].d.store(d, std::memory_order_relaxed);
+        s[b + i].k.store(key ^ d, std::memory_order_relaxed);
+    }
 };
 
+inline int envInt(const char* name, int def) { const char* v = getenv(name); return v ? atoi(v) : def; }
+
 struct Solver {
-    std::vector<TTEntry> tt;
-    uint64_t mask;
+    std::shared_ptr<LTT> tt;
     std::vector<int32_t> hist[2];
     int16_t killer[32][2];
     uint64_t nodes = 0;
@@ -26,16 +58,27 @@ struct Solver {
     bool useDeadline = false;
     bool aborted = false;
     uint64_t nodeLimit = UINT64_MAX;
-    int evalOrderRem = 7;  // order children by the learned evaluation when >= this many pieces are left
+    // profiling counters per ply: visited, cut by TT, cut by bounds, expanded
+    uint64_t pVisit[16] = {}, pTT[16] = {}, pBound[16] = {}, pExp[16] = {};
+    int evalOrderRem = envInt("SOLVER_EVAL_REM", 7);  // order children by the learned evaluation when >= this many pieces are left
+    // deeper down, eval-order only where the side to move does not look lost: the losing side
+    // has to try every move anyway, so ordering its moves is wasted work
+    int evalOrderRemWin = envInt("SOLVER_EVAL_WIN_REM", 7);
+    double evalWinThreshold = envInt("SOLVER_EVAL_WIN_THR", -100) / 100.0;
+    int etcRem = envInt("SOLVER_ETC_REM", 99);        // enhanced transposition cutoffs when >= this many pieces are left
 
-    explicit Solver(int log2size = 22) {
-        tt.assign(size_t(1) << log2size, TTEntry{0, -2, 2, -1});
-        mask = (uint64_t(1) << log2size) - 1;
+    // log2size: log2 of the number of entries (16 bytes each)
+    explicit Solver(int log2size = 22) : tt(std::make_shared<LTT>(log2size - 1)) { init(); }
+    explicit Solver(std::shared_ptr<LTT> shared) : tt(std::move(shared)) { init(); }
+    std::vector<Move> mvBuf[32];
+    std::vector<int> scBuf[32];
+    void init() {
+        for (int i = 0; i < 32; i++) { mvBuf[i].resize(3000); scBuf[i].resize(3000); }
         for (auto& h : hist) h.assign(T.NGID, 0);
         std::memset(killer, -1, sizeof killer);
     }
     void clear() {
-        std::fill(tt.begin(), tt.end(), TTEntry{0, -2, 2, -1});
+        tt->clear();
         for (auto& h : hist) std::fill(h.begin(), h.end(), 0);
         std::memset(killer, -1, sizeof killer);
     }
@@ -60,18 +103,19 @@ struct Solver {
         nodes++;
         if (checkAbort()) return 0;
         if (s.over()) return terminalValue(s);
+        uint64_t n0 = nodes;
+        int pp = std::min<int>(s.ply, 15);
+        pVisit[pp]++;
 
         int lo = -1, hi = 1;
         int t;
         uint64_t k = s.key(t);
-        TTEntry& e = tt[k & mask];
-        int ttMove = -1;
-        bool hit = e.key == k;
-        if (hit) {
-            lo = e.lo; hi = e.hi;
-            if (lo >= hi || lo >= beta) return lo;
-            if (hi <= alpha) return hi;
-            if (e.best >= 0) ttMove = T.gidSym[e.best][T.inv[t]];
+        int ttMove = -1, eLo, eHi, eBest = -1;
+        if (tt->probe(k, eLo, eHi, eBest)) {
+            lo = eLo; hi = eHi;
+            if (lo >= hi || lo >= beta) { pTT[pp]++; return lo; }
+            if (hi <= alpha) { pTT[pp]++; return hi; }
+            if (eBest >= 0) ttMove = T.gidSym[eBest][T.inv[t]];
         }
         // snake-length bound cutoffs
         int lbMe, ubMe, lbOp, ubOp;
@@ -81,15 +125,17 @@ struct Solver {
         int bhi = ubMe < lbOp ? -1 : ubMe <= lbOp ? 0 : 1;
         lo = std::max(lo, blo);
         hi = std::min(hi, bhi);
-        if (lo >= hi || lo >= beta) return lo;
-        if (hi <= alpha) return hi;
+        if (lo >= hi || lo >= beta) { pBound[pp]++; return lo; }
+        if (hi <= alpha) { pBound[pp]++; return hi; }
+        pExp[pp]++;
         alpha = std::max(alpha, lo);
         beta = std::min(beta, hi);
         int a0 = alpha, b0 = beta;
 
         // generate + order
-        Move moves[3000];
-        int score[3000];
+        // per-depth move buffers (no per-node initialisation of 3000-element arrays)
+        Move* moves = mvBuf[s.ply & 31].data();
+        int* score = scBuf[s.ply & 31].data();
         int n = 0;
         BB me = s.own[s.stm];
         BB opp = s.own[s.stm ^ 1];
@@ -109,11 +155,23 @@ struct Solver {
             moves[n] = m; score[n] = sc; n++;
         });
         int rem = pieceCount(s.avail[0]) + pieceCount(s.avail[1]);
-        if (n > 1 && rem >= evalOrderRem) {
+        bool doEval = n > 1 && (rem >= evalOrderRem || (rem >= evalOrderRemWin && learnedLogit(s) > evalWinThreshold));
+        bool doEtc = n > 0 && rem >= etcRem;
+        if (doEval || doEtc) {
             for (int i = 0; i < n; i++) {
-                if (score[i] >= (1 << 28)) continue;  // keep TT / killer priority
                 Pos c = s; c.play(moves[i]);
-                score[i] = c.over() ? -terminalValue(c) * 100000 : -(int)(1000 * learnedLogit(c));
+                if (doEtc) {
+                    // enhanced transposition cutoff: a child already known to be good enough
+                    int cv = -9;
+                    if (c.over()) cv = -terminalValue(c);
+                    else { int ct, clo, chi, cb; if (tt->probe(c.key(ct), clo, chi, cb)) cv = -chi; }  // our value >= -chi
+                    if (cv >= beta) {
+                        tt->store(k, std::max(lo, cv), hi, T.gidSym[moves[i].gid][t], 0);
+                        return cv;
+                    }
+                }
+                if (doEval && score[i] < (1 << 28))
+                    score[i] = c.over() ? -terminalValue(c) * 100000 : -(int)(1000 * learnedLogit(c));
             }
         }
         int best = -2, bestGid = -1;
@@ -141,13 +199,13 @@ struct Solver {
         }
         if (aborted) return 0;
         // store
-        int8_t nlo = (int8_t)lo, nhi = (int8_t)hi;
-        if (best <= a0) nhi = std::min<int8_t>(nhi, best);
-        else if (best >= b0) nlo = std::max<int8_t>(nlo, best);
+        int nlo = lo, nhi = hi;
+        if (best <= a0) nhi = std::min(nhi, best);
+        else if (best >= b0) nlo = std::max(nlo, best);
         else nlo = nhi = best;
-        e.key = k; e.lo = nlo; e.hi = nhi;
-        if (bestGid >= 0) e.best = (int16_t)T.gidSym[bestGid][t];
-        else if (!hit) e.best = -1;
+        uint64_t work = nodes - n0 + 1;
+        int w = 63 - __builtin_clzll(work);
+        tt->store(k, nlo, nhi, bestGid >= 0 ? T.gidSym[bestGid][t] : eBest, w);
         return best;
     }
 
@@ -213,9 +271,13 @@ inline ParallelSolveResult parallelSolve(const Pos& root, double seconds, int th
     std::mutex mu;
     threads = std::max(1, std::min<int>(threads, (int)mv.size()));
     std::vector<std::thread> th;
+    // SOLVER_SHARED=<log2 entries>: one transposition table shared by all threads
+    int sharedLog2 = envInt("SOLVER_SHARED", 0);
+    std::shared_ptr<LTT> shared = sharedLog2 ? std::make_shared<LTT>(sharedLog2 - 1) : nullptr;
     for (int w = 0; w < threads; w++)
         th.emplace_back([&] {
-            Solver S(ttLog2);
+            std::unique_ptr<Solver> SP(shared ? new Solver(shared) : new Solver(ttLog2));
+            Solver& S = *SP;
             S.stop = &stop;
             for (;;) {
                 size_t k = next++;

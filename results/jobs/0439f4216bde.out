@@ -1,0 +1,28 @@
+root moves: 608  ply 4 stm 0
+[    15s]    1 solved  4A:74,84,94,105        loss   15.1s      8889503 nodes
+[    20s]    2 solved  4A:84,94,103,104       loss   20.3s     12688512 nodes
+[    21s]    3 solved  4A:85,95,104,105       loss   21.0s     12161330 nodes
+[    22s]    4 solved  4I:84,94,104,114       loss   21.7s     12322798 nodes
+[    24s]    5 solved  4A:84,94,104,115       loss    3.8s      2027534 nodes
+[    29s]    6 solved  3I:84,94,104           loss   13.6s      8560191 nodes
+[    35s]    7 solved  4A:84,95,105,115       loss   35.3s     23740685 nodes
+[    36s]    8 solved  4C:84,95,104,105       loss   35.4s     21053788 nodes
+[    39s]    9 solved  4I:64,74,84,94         loss   17.4s     11144838 nodes
+[    46s]   10 solved  4A:63,73,84,95         loss   17.1s     10660239 nodes
+[    59s]   11 solved  4I:85,95,105,115       loss   34.5s     22698807 nodes
+[    69s]   12 solved  4C:63,64,73,84         loss   33.9s     21717358 nodes
+[    69s]   13 solved  4A:73,84,94,104        win    69.3s     39729754 nodes
+ply 4 stm 0: value 1  (13/608 root moves solved, 519776777 nodes, 69.5s)
+  3I:84,94,104           loss
+  4I:64,74,84,94         loss
+  4I:84,94,104,114       loss
+  4I:85,95,105,115       loss
+  4A:73,84,94,104        win
+  4A:84,95,105,115       loss
+  4A:74,84,94,105        loss
+  4A:84,94,104,115       loss
+  4A:63,73,84,95         loss
+  4A:84,94,103,104       loss
+  4A:85,95,104,105       loss
+  4C:63,64,73,84         loss
+  4C:84,95,104,105       loss
