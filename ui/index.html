@@ -60,6 +60,7 @@
   <button id="bPass">Pass</button>
   <span>|</span>
   <label>Čas enginu <select id="secs"><option>1</option><option selected>3</option><option>10</option><option>30</option><option>60</option></select> s</label>
+  <label>Engine <select id="eng"><option value="ab" selected>alfa-beta</option><option value="mcts">MCTS (starý)</option></select></label>
   <button id="bGo">Engine táhni</button>
   <button id="bAn">Analyzuj</button>
   <label><input type="checkbox" id="auto0"> engine hraje <b style="color:var(--p0)">červeného</b></label>
@@ -253,32 +254,42 @@ function maybeAuto() {
   if (document.getElementById('auto' + st.stm).checked) setTimeout(engineMove, 50);
 }
 function valTxt(v) { return v === 1 ? '<span class="win">výhra</span>' : v === -1 ? '<span class="loss">prohra</span>' : '<span class="drawc">remíza</span>'; }
+function fmtScore(m) {
+  if (m.exact === 1) return '<span class="win">výhra</span>';
+  if (m.exact === -1) return '<span class="loss">prohra</span>';
+  if (m.exact === 0) return '<span class="drawc">remíza</span>';
+  if (m.score !== undefined && lastAnalysis && lastAnalysis.engine === 'ab')
+    return (m.n ? '' : '<span class="muted">≤ </span>') + `${(m.wr * 100).toFixed(0)} %`;
+  return `${(m.wr * 100).toFixed(1)} %`;
+}
 function showAnalysis(a, played) {
   lastAnalysis = a;
   const mover = a.stm; // stm when analysed
   const color = mover === 0 ? 'červeného' : 'modrého';
-  let p0; // probability-ish for red
-  let head;
+  const b = a.moves[0];
+  let p0, head;
   if (a.exact) {
     const v = a.value;
     head = `Vyřešeno: ${valTxt(v)} pro ${color}`;
     const vRed = mover === 0 ? v : -v;
     p0 = vRed === 1 ? 1 : vRed === -1 ? 0 : 0.5;
-  } else {
-    const b = a.moves[0];
+  } else if (a.engine === 'ab') {
     const wr = b ? b.wr : 0.5;
     p0 = mover === 0 ? wr : 1 - wr;
-    head = `MCTS odhad: ${(wr * 100).toFixed(0)} % pro ${color}` + (b && b.exact !== -9 ? ` (nejlepší tah vyřešen: ${valTxt(b.exact)})` : '');
+    head = `Alfa-beta, hloubka ${a.depth}: ${b.exact === 1 ? 'vynucená výhra' : b.exact === -1 ? 'prohraná pozice' : fmtScore(b) + ' šance na výhru'} pro ${color}`;
+  } else {
+    const wr = b ? b.wr : 0.5;
+    p0 = mover === 0 ? wr : 1 - wr;
+    head = `MCTS odhad: ${(wr * 100).toFixed(0)} % pro ${color}`;
   }
   document.getElementById('evalFill').style.width = (p0 * 100).toFixed(0) + '%';
   document.getElementById('evalTxt').innerHTML = `červený ${(p0 * 100).toFixed(0)} %`;
-  const rows = a.moves.slice(0, 25).map((m, k) => {
-    const ev = m.exact !== -9 ? valTxt(m.exact) : `${(m.wr * 100).toFixed(1)} %`;
-    return `<tr class="mv" data-k="${k}"><td>${k + 1}</td><td>${m.m.s}</td><td>${ev}</td><td class="muted">${a.exact ? '' : m.n}</td></tr>`;
-  }).join('');
+  const rows = a.moves.slice(0, 25).map((m, k) =>
+    `<tr class="mv" data-k="${k}"><td>${k + 1}</td><td>${m.m.s}</td><td>${fmtScore(m)}</td><td class="muted">${a.engine === 'mcts' ? m.n : ''}</td></tr>`).join('');
   const el = document.getElementById('anl');
-  el.innerHTML = `<div>${played ? 'Engine zahrál ' + a.moves[0].m.s + '. ' : ''}${head}</div>
-    <table><tr><th>#</th><th>tah</th><th>hodnota</th><th>${a.exact ? '' : 'návštěvy'}</th></tr>${rows}</table>`;
+  el.innerHTML = `<div>${played ? 'Engine zahrál ' + b.m.s + '. ' : ''}${head}</div>
+    <div class="muted">${a.engine === 'ab' ? 'Odhad šance na výhru hráče na tahu po daném tahu (naučená hodnoticí funkce + prohledávání); „≤“ = jen horní mez (tah je horší než nejlepší).' : ''}</div>
+    <table><tr><th>#</th><th>tah</th><th>hodnota</th><th>${a.engine === 'mcts' ? 'návštěvy' : ''}</th></tr>${rows}</table>`;
   el.querySelectorAll('tr.mv').forEach(tr => {
     const m = a.moves[+tr.dataset.k].m;
     tr.onmouseenter = () => { if (!played) updatePreview(m); };
@@ -299,13 +310,14 @@ document.getElementById('bUndo').onclick = async () => {
 document.getElementById('bPass').onclick = () => playMove('pass');
 document.getElementById('bGo').onclick = engineMove;
 document.getElementById('bAn').onclick = analyzeNow;
+document.getElementById('eng').onchange = async (e) => { await cmd('engine ' + e.target.value); };
 document.addEventListener('keydown', e => {
   if (!st || st.over) return;
   const k = +e.key;
   if (k >= 1 && k <= 8) { const p = PIECES[k - 1]; if (st.avail[st.stm].includes(p)) { sel = p; candIdx = 0; updatePreview(); } }
   if (e.key === 'r' || e.key === 'R') { candIdx++; updatePreview(); }
 });
-(async () => { await apply(await cmd('state')); })();
+(async () => { await cmd('engine ' + document.getElementById('eng').value); await apply(await cmd('state')); })();
 </script>
 </body>
 </html>

@@ -1,12 +1,13 @@
 // Exact solver: negamax alpha-beta over {-1, 0, +1} (loss/draw/win for the side
 // to move), transposition table keyed by the symmetry-canonical hash, snake-length
-// bounds for early cutoffs, TT-move + history move ordering.
+// bounds for early cutoffs, TT-move + killer + history move ordering.
 #pragma once
 #include <atomic>
 #include <chrono>
 #include <cstring>
 #include <memory>
 #include "core.hpp"
+#include "eval.hpp"
 
 struct TTEntry {
     uint64_t key;
@@ -18,21 +19,25 @@ struct Solver {
     std::vector<TTEntry> tt;
     uint64_t mask;
     std::vector<int32_t> hist[2];
+    int16_t killer[32][2];
     uint64_t nodes = 0;
     std::atomic<bool>* stop = nullptr;
     std::chrono::steady_clock::time_point deadline;
     bool useDeadline = false;
     bool aborted = false;
     uint64_t nodeLimit = UINT64_MAX;
+    int evalOrderRem = 7;  // order children by the learned evaluation when >= this many pieces are left
 
     explicit Solver(int log2size = 22) {
         tt.assign(size_t(1) << log2size, TTEntry{0, -2, 2, -1});
         mask = (uint64_t(1) << log2size) - 1;
         for (auto& h : hist) h.assign(T.NGID, 0);
+        std::memset(killer, -1, sizeof killer);
     }
     void clear() {
         std::fill(tt.begin(), tt.end(), TTEntry{0, -2, 2, -1});
         for (auto& h : hist) std::fill(h.begin(), h.end(), 0);
+        std::memset(killer, -1, sizeof killer);
     }
 
     static int terminalValue(const Pos& s) {
@@ -56,26 +61,28 @@ struct Solver {
         if (checkAbort()) return 0;
         if (s.over()) return terminalValue(s);
 
-        // bound cutoffs
-        int lbMe, ubMe, lbOp, ubOp;
-        snakeBounds(s, s.stm, lbMe, ubMe);
-        snakeBounds(s, s.stm ^ 1, lbOp, ubOp);
-        int lo = lbMe > ubOp ? 1 : lbMe >= ubOp ? 0 : -1;
-        int hi = ubMe < lbOp ? -1 : ubMe <= lbOp ? 0 : 1;
-        if (lo == hi || lo >= beta) return lo;
-        if (hi <= alpha) return hi;
-
+        int lo = -1, hi = 1;
         int t;
         uint64_t k = s.key(t);
         TTEntry& e = tt[k & mask];
         int ttMove = -1;
-        if (e.key == k) {
-            lo = std::max<int>(lo, e.lo);
-            hi = std::min<int>(hi, e.hi);
+        bool hit = e.key == k;
+        if (hit) {
+            lo = e.lo; hi = e.hi;
             if (lo >= hi || lo >= beta) return lo;
             if (hi <= alpha) return hi;
             if (e.best >= 0) ttMove = T.gidSym[e.best][T.inv[t]];
         }
+        // snake-length bound cutoffs
+        int lbMe, ubMe, lbOp, ubOp;
+        snakeBounds(s, s.stm, lbMe, ubMe);
+        snakeBounds(s, s.stm ^ 1, lbOp, ubOp);
+        int blo = lbMe > ubOp ? 1 : lbMe >= ubOp ? 0 : -1;
+        int bhi = ubMe < lbOp ? -1 : ubMe <= lbOp ? 0 : 1;
+        lo = std::max(lo, blo);
+        hi = std::min(hi, bhi);
+        if (lo >= hi || lo >= beta) return lo;
+        if (hi <= alpha) return hi;
         alpha = std::max(alpha, lo);
         beta = std::min(beta, hi);
         int a0 = alpha, b0 = beta;
@@ -84,16 +91,31 @@ struct Solver {
         Move moves[3000];
         int score[3000];
         int n = 0;
-        BB me = s.own[s.stm], op = s.own[s.stm ^ 1];
+        BB me = s.own[s.stm];
+        BB opp = s.own[s.stm ^ 1];
+        BB oppFront = expand(shapeOf(opp).ends) & s.empty();
+        int ply = std::min<int>(s.ply, 31);
+        int k1 = killer[ply][0], k2 = killer[ply][1];
         auto& H = hist[s.stm];
         s.forEachLegal([&](Move m) {
             const Placement& pl = m.pl();
             int sc = H[m.gid] + PSIZE[m.piece()] * 64;
             if (pl.nb & me) sc += 256;
-            if (pl.nb & op) sc += 32;
+            if (pl.m & oppFront) sc += 128;
+            else if (pl.nb & opp) sc += 32;
             if (m.gid == ttMove) sc = 1 << 30;
+            else if (m.gid == k1) sc = 1 << 29;
+            else if (m.gid == k2) sc = 1 << 28;
             moves[n] = m; score[n] = sc; n++;
         });
+        int rem = pieceCount(s.avail[0]) + pieceCount(s.avail[1]);
+        if (n > 1 && rem >= evalOrderRem) {
+            for (int i = 0; i < n; i++) {
+                if (score[i] >= (1 << 28)) continue;  // keep TT / killer priority
+                Pos c = s; c.play(moves[i]);
+                score[i] = c.over() ? -terminalValue(c) * 100000 : -(int)(1000 * learnedLogit(c));
+            }
+        }
         int best = -2, bestGid = -1;
         if (n == 0) {
             Pos c = s;
@@ -101,7 +123,6 @@ struct Solver {
             best = -search(c, -beta, -alpha);
         } else {
             for (int i = 0; i < n; i++) {
-                // selection sort step
                 int bi = i;
                 for (int j = i + 1; j < n; j++) if (score[j] > score[bi]) bi = j;
                 std::swap(moves[i], moves[bi]); std::swap(score[i], score[bi]);
@@ -113,30 +134,28 @@ struct Solver {
                 if (v > alpha) alpha = v;
                 if (alpha >= beta) {
                     H[moves[i].gid] += 1 + i / 8 + 4 * s.ply;
+                    if (killer[ply][0] != moves[i].gid) { killer[ply][1] = killer[ply][0]; killer[ply][0] = moves[i].gid; }
                     break;
                 }
             }
         }
         if (aborted) return 0;
         // store
-        int8_t nlo = -2, nhi = 2;
-        if (best <= a0) nhi = best;
-        else if (best >= b0) nlo = best;
+        int8_t nlo = (int8_t)lo, nhi = (int8_t)hi;
+        if (best <= a0) nhi = std::min<int8_t>(nhi, best);
+        else if (best >= b0) nlo = std::max<int8_t>(nlo, best);
         else nlo = nhi = best;
-        if (e.key == k) {
-            e.lo = std::max<int8_t>(e.lo, nlo);
-            e.hi = std::min<int8_t>(e.hi, nhi);
-        } else {
-            e.key = k; e.lo = nlo; e.hi = nhi;
-        }
+        e.key = k; e.lo = nlo; e.hi = nhi;
         if (bestGid >= 0) e.best = (int16_t)T.gidSym[bestGid][t];
+        else if (!hit) e.best = -1;
         return best;
     }
 
     // Returns value for the side to move, or -9 if aborted.
-    int solve(const Pos& s, double seconds = 0) {
+    int solve(const Pos& s, double seconds = 0, uint64_t maxNodes = UINT64_MAX) {
         aborted = false;
         nodes = 0;
+        nodeLimit = maxNodes;
         useDeadline = seconds > 0;
         if (useDeadline)
             deadline = std::chrono::steady_clock::now() +

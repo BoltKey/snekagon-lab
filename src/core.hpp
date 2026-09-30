@@ -1,4 +1,4 @@
-// Snekagon core: board geometry, pieces, positions, move generation.
+// Snekagon core: board geometry, pieces, positions, move generation, bounds.
 //
 // Board: hexagon of radius 5 (91 cells) in axial coords (q, r), stored in a
 // padded 11x11 grid -> cell index = (r+5)*11 + (q+5), 0..120. Fits in 128 bits,
@@ -31,6 +31,9 @@ inline int idxOf(int q, int r) { return (r + R) * W + (q + R); }
 inline bool onBoard(int q, int r) {
     return q >= -R && q <= R && r >= -R && r <= R && std::abs(q + r) <= R;
 }
+// neighbour directions in ring order (consecutive entries are adjacent to each other)
+constexpr int DQ[6] = {1, 1, 0, -1, -1, 0};
+constexpr int DR[6] = {0, -1, -1, 0, 1, 1};
 
 // ---- pieces ---------------------------------------------------------------
 // Shapes read off the print & play sheet. Pieces are double-sided (may flip).
@@ -59,25 +62,51 @@ struct Placement {
     int gid;   // global placement id (for history tables / symmetry maps)
 };
 
+// One orientation of a piece, used by the bit-parallel move generator: legality
+// of every anchor cell at once is an AND/OR of shifted bitboards.
+struct Orient {
+    int piece, n;
+    int dq[4], dr[4];
+    int ideg[4];                              // neighbours inside the piece
+    std::vector<std::pair<int, int>> tri;     // outside cells touching 2 adjacent (or >=3) piece cells
+    std::vector<std::pair<int, int>> two;     // outside cells touching exactly 2 non-adjacent piece cells
+    int16_t gidAt[NIDX];                      // anchor cell -> placement gid (-1 if off board)
+};
+
 struct Tables {
     BB VALID = 0, NOT_QMAX = 0, NOT_QMIN = 0;
+    BB COLR[17];  // COLR[dq+8]: cells whose q lies in [-5+dq, 5+dq]
     BB NB[NIDX];
     int cells[NCELLS];
     int perm[NSYM][NIDX];  // cell -> transformed cell
     int inv[NSYM];
     std::vector<Placement> PL[NPIECE];
+    std::vector<Orient> OR;
+    int orBegin[NPIECE + 1];
     std::vector<std::pair<int, int>> gidInfo;  // gid -> (piece, index)
     std::vector<std::array<int, NSYM>> gidSym; // gid -> transformed gid
     int NGID = 0;
     uint64_t zCell[2][NIDX];
     uint64_t zPiece[2][NPIECE];
     uint64_t zStm;
+    uint8_t fit[256][NIDX + 1];  // max subset-sum of piece sizes in mask <= n
 };
 inline Tables T;
 
 inline BB expand(BB b) {
     BB a = b & T.NOT_QMAX, c = b & T.NOT_QMIN;
     return ((a << 1) | (c >> 1) | (b << 11) | (b >> 11) | (a >> 10) | (c << 10)) & T.VALID;
+}
+// set of cells x such that x + (dq, dr) is in b
+inline BB shiftFrom(BB b, int dq, int dr) {
+    BB m = b & T.COLR[dq + 8];
+    int d = dr * W + dq;
+    return (d >= 0 ? (m >> d) : (m << -d)) & T.VALID;
+}
+inline BB flood(BB seed, BB allowed) {
+    BB c = seed, prev = 0;
+    while (c != prev) { prev = c; c |= expand(c) & allowed; }
+    return c;
 }
 
 inline std::pair<int, int> symApply(int t, int q, int r) {
@@ -97,6 +126,11 @@ inline uint64_t splitmix(uint64_t& x) {
     return z ^ (z >> 31);
 }
 
+inline bool hexAdj(int q1, int r1, int q2, int r2) {
+    for (int k = 0; k < 6; k++) if (q1 + DQ[k] == q2 && r1 + DR[k] == r2) return true;
+    return false;
+}
+
 inline void initTables() {
     int k = 0;
     for (int i = 0; i < NIDX; i++) {
@@ -106,6 +140,11 @@ inline void initTables() {
         T.cells[k++] = i;
         if (q < R) T.NOT_QMAX |= bit(i);
         if (q > -R) T.NOT_QMIN |= bit(i);
+    }
+    for (int dq = -8; dq <= 8; dq++) {
+        BB m = 0;
+        for (int i = 0; i < NIDX; i++) if (qOf(i) >= -R + dq && qOf(i) <= R + dq) m |= bit(i);
+        T.COLR[dq + 8] = m;
     }
     for (int i = 0; i < NIDX; i++) T.NB[i] = (T.VALID >> i & 1) ? expand(bit(i)) : 0;
     for (int t = 0; t < NSYM; t++)
@@ -120,9 +159,12 @@ inline void initTables() {
             for (int c : T.cells) if (T.perm[u][T.perm[t][c]] != c) { ok = false; break; }
             if (ok) { T.inv[t] = u; break; }
         }
-    // placements
+    // orientations + placements (placement order = orientation-major, anchors ascending;
+    // the bit-parallel generator enumerates in exactly the same order)
     T.gidInfo.clear();
+    T.OR.clear();
     for (int p = 0; p < NPIECE; p++) {
+        T.orBegin[p] = (int)T.OR.size();
         std::vector<std::vector<std::pair<int, int>>> ors;
         for (int t = 0; t < NSYM; t++) {
             std::vector<std::pair<int, int>> o;
@@ -133,7 +175,35 @@ inline void initTables() {
             if (std::find(ors.begin(), ors.end(), o) == ors.end()) ors.push_back(o);
         }
         T.PL[p].clear();
-        for (auto& o : ors)
+        for (auto& o : ors) {
+            Orient od{};
+            od.piece = p;
+            od.n = (int)o.size();
+            for (int j = 0; j < od.n; j++) {
+                od.dq[j] = o[j].first; od.dr[j] = o[j].second;
+                od.ideg[j] = 0;
+                for (int l = 0; l < od.n; l++)
+                    if (l != j && hexAdj(o[j].first, o[j].second, o[l].first, o[l].second)) od.ideg[j]++;
+            }
+            // outside cells touching >= 2 piece cells
+            std::vector<std::pair<int, int>> seen;
+            for (int j = 0; j < od.n; j++)
+                for (int d = 0; d < 6; d++) {
+                    std::pair<int, int> e{o[j].first + DQ[d], o[j].second + DR[d]};
+                    if (std::find(o.begin(), o.end(), e) != o.end()) continue;
+                    if (std::find(seen.begin(), seen.end(), e) != seen.end()) continue;
+                    seen.push_back(e);
+                    std::vector<int> touching;
+                    for (int l = 0; l < od.n; l++)
+                        if (hexAdj(e.first, e.second, o[l].first, o[l].second)) touching.push_back(l);
+                    if (touching.size() < 2) continue;
+                    bool adjPair = touching.size() >= 3;
+                    for (size_t x = 0; x < touching.size(); x++)
+                        for (size_t y = x + 1; y < touching.size(); y++)
+                            if (hexAdj(o[touching[x]].first, o[touching[x]].second, o[touching[y]].first, o[touching[y]].second)) adjPair = true;
+                    (adjPair ? od.tri : od.two).push_back(e);
+                }
+            for (int i = 0; i < NIDX; i++) od.gidAt[i] = -1;
             for (int c : T.cells) {
                 Placement pl{};
                 bool ok = true;
@@ -146,10 +216,14 @@ inline void initTables() {
                 if (!ok) continue;
                 pl.nb = expand(pl.m) & ~pl.m;
                 pl.gid = (int)T.gidInfo.size();
+                od.gidAt[c] = (int16_t)pl.gid;
                 T.gidInfo.push_back({p, (int)T.PL[p].size()});
                 T.PL[p].push_back(pl);
             }
+            T.OR.push_back(od);
+        }
     }
+    T.orBegin[NPIECE] = (int)T.OR.size();
     T.NGID = (int)T.gidInfo.size();
     // symmetry map on placements
     T.gidSym.assign(T.NGID, {});
@@ -169,6 +243,15 @@ inline void initTables() {
         for (int p = 0; p < NPIECE; p++) T.zPiece[c][p] = splitmix(seed);
     }
     T.zStm = splitmix(seed);
+    for (int m = 0; m < 256; m++) {
+        std::vector<bool> can(NIDX + 1, false);
+        can[0] = true;
+        for (int p = 0; p < NPIECE; p++)
+            if (m >> p & 1)
+                for (int s = NIDX; s >= PSIZE[p]; s--) if (can[s - PSIZE[p]]) can[s] = true;
+        int best = 0;
+        for (int n = 0; n <= NIDX; n++) { if (can[n]) best = n; T.fit[m][n] = (uint8_t)best; }
+    }
 }
 
 // ---- moves & positions ------------------------------------------------------
@@ -179,6 +262,54 @@ struct Move {
     const Placement& pl() const { auto [p, i] = T.gidInfo[gid]; return T.PL[p][i]; }
     bool operator==(const Move& o) const { return gid == o.gid; }
 };
+
+// Per-player structure of the own cells.
+struct Shape {
+    BB own;    // own cells
+    BB ge1, ge2, ge3;  // cells with >= 1/2/3 own neighbours
+    BB tri2;   // cells with two mutually adjacent own neighbours
+    BB full;   // own cells with 2 own neighbours (snake body; can never be touched again)
+    BB ends;   // own cells with <= 1 own neighbour
+};
+inline Shape shapeOf(BB own) {
+    Shape s;
+    s.own = own;
+    BB n[6];
+    for (int d = 0; d < 6; d++) n[d] = shiftFrom(own, DQ[d], DR[d]);
+    BB g1 = 0, g2 = 0, g3 = 0, t2 = 0;
+    for (int d = 0; d < 6; d++) {
+        g3 |= g2 & n[d]; g2 |= g1 & n[d]; g1 |= n[d];
+        t2 |= n[d] & n[(d + 1) % 6];
+    }
+    s.ge1 = g1; s.ge2 = g2; s.ge3 = g3; s.tri2 = t2;
+    s.full = own & g2;
+    s.ends = own & ~g2;
+    return s;
+}
+
+struct GenCtx {
+    BB iso;       // empty cells not adjacent to any tile (new snakes)
+    BB allow[3];  // cells a grow-piece cell with 0/1/2 internal neighbours may occupy
+    BB adjOwn;    // empty cells adjacent to own tiles
+    BB me, meDeg1;
+};
+
+inline BB orientLegal(const Orient& o, const GenCtx& g) {
+    BB nw = T.VALID;
+    for (int k = 0; k < o.n; k++) nw &= shiftFrom(g.iso, o.dq[k], o.dr[k]);
+    if (!g.adjOwn) return nw;
+    BB gr = T.VALID, touch = 0;
+    for (int k = 0; k < o.n; k++) {
+        gr &= shiftFrom(g.allow[o.ideg[k]], o.dq[k], o.dr[k]);
+        touch |= shiftFrom(g.adjOwn, o.dq[k], o.dr[k]);
+    }
+    gr &= touch;
+    if (gr) {
+        for (auto [q, r] : o.tri) gr &= ~shiftFrom(g.me, q, r);
+        for (auto [q, r] : o.two) gr &= ~shiftFrom(g.meDeg1, q, r);
+    }
+    return nw | gr;
+}
 
 struct Pos {
     BB own[2] = {0, 0};
@@ -203,6 +334,9 @@ struct Pos {
     static Pos start() { Pos s; s.initHash(); return s; }
 
     bool over() const { return passes >= 2 || (avail[0] == 0 && avail[1] == 0); }
+    BB occ() const { return own[0] | own[1]; }
+    BB empty() const { return T.VALID & ~(own[0] | own[1]); }
+    uint8_t movable() const { return ply == 0 ? (avail[stm] & 1) : avail[stm]; }
 
     // canonical (symmetry-reduced) key; returns transform used via t
     uint64_t key(int& t) const {
@@ -211,6 +345,7 @@ struct Pos {
         return h[t];
     }
 
+    // Straightforward per-placement legality check (reference for the fast generator).
     bool legal(const Placement& pl) const {
         BB occ = own[0] | own[1];
         if (pl.m & occ) return false;
@@ -233,14 +368,37 @@ struct Pos {
         }
         return true;
     }
+    bool legalMove(Move m) const {
+        if (m.isPass()) return !hasMove();
+        if (!(movable() >> m.piece() & 1)) return false;
+        return legal(m.pl());
+    }
 
+    void genCtx(GenCtx& g) const {
+        BB occ = own[0] | own[1], E = T.VALID & ~occ;
+        Shape sh = shapeOf(own[stm]);
+        g.iso = E & ~expand(occ);
+        BB base = E & ~expand(sh.full);
+        g.allow[0] = base & ~sh.ge3 & ~sh.tri2;
+        g.allow[1] = base & ~sh.ge2;
+        g.allow[2] = base & ~sh.ge1;
+        g.adjOwn = E & sh.ge1;
+        g.me = sh.own;
+        g.meDeg1 = sh.own & sh.ge1;
+    }
     template <class F>
     void forEachLegal(F&& f) const {
-        uint8_t av = avail[stm];
-        if (ply == 0) av &= 1;  // first move is the 1-hex
+        uint8_t av = movable();
+        if (!av) return;
+        GenCtx g;
+        genCtx(g);
         for (int p = 0; p < NPIECE; p++) {
             if (!(av >> p & 1)) continue;
-            for (auto& pl : T.PL[p]) if (legal(pl)) f(Move{(int16_t)pl.gid});
+            for (int o = T.orBegin[p]; o < T.orBegin[p + 1]; o++) {
+                const Orient& od = T.OR[o];
+                BB lg = orientLegal(od, g);
+                while (lg) { int a = lsb(lg); lg &= lg - 1; f(Move{od.gidAt[a]}); }
+            }
         }
     }
     void genMoves(std::vector<Move>& out) const {
@@ -248,11 +406,13 @@ struct Pos {
         forEachLegal([&](Move m) { out.push_back(m); });
     }
     bool hasMove() const {
-        uint8_t av = avail[stm];
-        if (ply == 0) av &= 1;
+        uint8_t av = movable();
+        if (!av) return false;
+        GenCtx g;
+        genCtx(g);
         for (int p = 0; p < NPIECE; p++) {
             if (!(av >> p & 1)) continue;
-            for (auto& pl : T.PL[p]) if (legal(pl)) return true;
+            for (int o = T.orBegin[p]; o < T.orBegin[p + 1]; o++) if (orientLegal(T.OR[o], g)) return true;
         }
         return false;
     }
@@ -279,11 +439,7 @@ struct Pos {
 };
 
 // Component analysis
-inline BB componentOf(BB b, int i) {
-    BB c = bit(i), prev = 0;
-    while (c != prev) { prev = c; c |= expand(c) & b; }
-    return c;
-}
+inline BB componentOf(BB b, int i) { return flood(bit(i), b); }
 inline int longest(BB b) {
     int best = 0;
     while (b) {
@@ -298,31 +454,38 @@ inline int remainingCells(uint8_t av) {
     for (int p = 0; p < NPIECE; p++) if (av >> p & 1) s += PSIZE[p];
     return s;
 }
-// Lower / upper bound of the final longest snake for player c.
-// UB: every component that still touches an empty cell could in principle be
-// merged with all the others plus all remaining pieces.
-// A snake can only grow at an end (cell with <= 1 own neighbour), and never into
-// a cell next to an own cell that already has 2 own neighbours.
+inline int pieceCount(uint8_t av) { return __builtin_popcount(av); }
+
+// Lower / upper bound of the final longest snake of player c (sound).
+//  - A player can never again occupy a cell adjacent to one of its "full" cells
+//    (that cell would get 3 own neighbours) -> growable cells G = empty & ~N(full).
+//  - The final snake is connected and lies in own cells + G, so it lies inside one
+//    connected cluster K of (own | G). New cells come from whole pieces, and each
+//    piece lies inside one connected region of G, so the new cells in K are at most
+//    fit(sum over G-regions r in K of fit(|r|)).
 inline void snakeBounds(const Pos& s, int c, int& lb, int& ub) {
-    BB me = s.own[c], empty = T.VALID & ~(s.own[0] | s.own[1]);
-    int rem = remainingCells(s.avail[c]);
-    BB ends = 0, full = 0, b = me;
-    while (b) {
-        int i = lsb(b); b &= b - 1;
-        if (popc(T.NB[i] & me) <= 1) ends |= bit(i); else full |= bit(i);
+    BB me = s.own[c];
+    lb = longest(me);
+    uint8_t av = s.avail[c];
+    if (!av) { ub = lb; return; }
+    Shape sh = shapeOf(me);
+    BB G = s.empty() & ~expand(sh.full);
+    BB U = me | G;
+    ub = lb;
+    while (U) {
+        BB K = flood(bit(lsb(U)), U);
+        U &= ~K;
+        BB g = K & G;
+        if (!g) continue;
+        int cap = 0;
+        while (g) {
+            BB r = flood(bit(lsb(g)), g);
+            g &= ~r;
+            cap += T.fit[av][popc(r)];
+        }
+        int v = popc(K & me) + T.fit[av][std::min(cap, NIDX)];
+        ub = std::max(ub, v);
     }
-    BB growable = empty & ~expand(full);
-    lb = 0;
-    int deadMax = 0, liveSum = 0;
-    b = me;
-    while (b) {
-        BB comp = componentOf(b, lsb(b));
-        int n = popc(comp);
-        lb = std::max(lb, n);
-        if (rem && (expand(comp & ends) & growable)) liveSum += n; else deadMax = std::max(deadMax, n);
-        b &= ~comp;
-    }
-    ub = std::max(deadMax, liveSum + rem);
 }
 inline int finalScore(const Pos& s) {  // from player 1's perspective: >0 player 1 wins
     return longest(s.own[0]) - longest(s.own[1]);
