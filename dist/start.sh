@@ -3,7 +3,7 @@
 #   THREADS=12 ./dist/start.sh      (default: all hardware threads)
 set -e
 cd "$(dirname "$0")/.."
-[ -x build/snek ] || ./dist/build.sh
+[ -x build/snek ] || bash dist/build.sh
 mkdir -p results/dist
 if ! pgrep -f "dist/coordinator.py" > /dev/null; then
   nohup python3 dist/coordinator.py >> results/dist/coordinator.out 2>&1 &
