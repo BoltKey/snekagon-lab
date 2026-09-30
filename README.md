@@ -60,7 +60,7 @@ Single-threaded solver per position, ~0.5–0.9 M nodes/s.
 | 8 | 5–75 ms | 10³–6·10⁴ |
 | 7 | 0.2–2 s | 10⁵–2·10⁶ |
 | 6 | 1–90 s (1 of 12 > 120 s) | 6·10⁵–10⁸ |
-| 5 | 30 s → many > 15 min | 2·10⁷ – ? |
+| 5 | 30 s – 10 min (all 8 solved, median ~7 min) | 2·10⁷ – 5·10⁸ |
 
 Growth is roughly ×10–×30 per ply towards the start. Straight extrapolation to the empty board (5 more plies)
 is far out of reach **with the current solver** – solving the game needs algorithmic gains, not just CPU.
