@@ -68,6 +68,10 @@ Random positions are also not typical positions (random play leaves lots of scat
 
 Observations: random positions at plies 6–11 are overwhelmingly wins for the side to move.
 
+Self-play (`snek selfplay 2 1 4`, 1 s/move, 4 threads; `results/selfplay_1s.txt`): with a 1 s budget the
+exact solver takes over from ply 9 (after 8 real moves), before that it's MCTS. MCTS rates the position
+after the centre 1-hex ~55 % for red and the reply ~68 % for blue – no reliable signal yet at this strength.
+
 ## Next steps (ideas, roughly by expected payoff)
 
 1. **Better bounds.** The upper bound (sum of growable components + remaining cells) is weak early. Tighter:
