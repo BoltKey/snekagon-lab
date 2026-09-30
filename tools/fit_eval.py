@@ -1,17 +1,21 @@
 """Fit the evaluation function on solver-labelled positions.
 
-    python tools/fit_eval.py data/labels_v1.csv [more.csv ...]
+    python tools/fit_eval.py data/labels_v1.csv data/labels_good_v3.csv ...
 
 Each row is a position (features from both players' view, `_s` = side to move,
 `_o` = opponent) with its exact game-theoretic value for the side to move
-(-1/0/1). We fit a logistic regression P(win) on engineered features and write
-src/eval_weights.hpp. Draws count as half a win.
+(-1/0/1). We fit a logistic regression P(side to move wins) and write
+src/eval_weights.hpp + data/weights_latest.txt. Draws count as half a win.
+
+Files whose name contains "good" come from (almost) greedy play; the others from
+noisy play, where the move before a recorded position was often a blunder, which
+inflates the side-to-move advantage. Noisy rows therefore get their own tempo
+terms (bias, stmIsP1, dRem); only the good-play tempo terms are exported.
 """
 import sys
 import numpy as np
 
 FEATS = [
-    # name, function of (row dict) -> value; side-to-move minus opponent unless noted
     ('bias', lambda r: 1.0),
     ('dL', lambda r: r['L_s'] - r['L_o']),
     ('dSingle', lambda r: (r['singleOwn_s'] + min(r['rem_s'], r['singleTerr_s'])) - (r['singleOwn_o'] + min(r['rem_o'], r['singleTerr_o']))),
@@ -27,18 +31,23 @@ FEATS = [
     ('dFresh', lambda r: min(r['fresh_s'], 30) - min(r['fresh_o'], 30)),
     ('stmIsP1', lambda r: 1.0 if r['stm'] == 0 else -1.0),
 ]
+TEMPO = ['bias', 'stmIsP1', 'dRem']
 
 
 def load(paths):
     rows = []
-    for p in paths:
+    for fi, p in enumerate(paths):
+        good = 'good' in p
         with open(p) as f:
             head = f.readline().strip().split(',')
             for line in f:
                 parts = line.strip().split(',')
                 if len(parts) != len(head):
                     continue
-                rows.append({k: int(v) for k, v in zip(head, parts)})
+                r = {k: int(v) for k, v in zip(head, parts)}
+                r['good'] = good
+                r['file'] = fi
+                rows.append(r)
     return rows
 
 
@@ -52,56 +61,94 @@ def fit(X, y, l2=1e-3, iters=50):
     return w
 
 
-def report(name, logit, y, vals):
+def metrics(logit, y, vals):
     p = 1 / (1 + np.exp(-logit))
     ll = -np.mean(y * np.log(np.clip(p, 1e-9, 1)) + (1 - y) * np.log(np.clip(1 - p, 1e-9, 1)))
-    decisive = vals != 0
-    acc = np.mean((logit[decisive] > 0) == (vals[decisive] > 0))
-    print(f'  {name:28s} logloss {ll:.4f}  decisive-accuracy {acc:.3f}')
+    d = vals != 0
+    acc = np.mean((logit[d] > 0) == (vals[d] > 0)) if d.any() else float('nan')
+    return ll, acc
+
+
+def jumpiness(rows, logit, mask):
+    """Mean |change| of red's predicted win probability between consecutive plies of the
+    same good-play game, next to the same quantity for the exact value."""
+    red_pred, red_true = {}, {}
+    for i, r in enumerate(rows):
+        if not mask[i]:
+            continue
+        p = 1 / (1 + np.exp(-logit[i]))
+        v = (r['value'] + 1) / 2
+        key = (r['file'], r['game'], r['ply'])
+        red_pred[key] = p if r['stm'] == 0 else 1 - p
+        red_true[key] = v if r['stm'] == 0 else 1 - v
+    dp, dt = [], []
+    for (f, g, ply), p in red_pred.items():
+        nxt = (f, g, ply + 1)
+        if nxt in red_pred:
+            dp.append(abs(red_pred[nxt] - p))
+            dt.append(abs(red_true[nxt] - red_true[(f, g, ply)]))
+    return (np.mean(dp), np.mean(dt), len(dp)) if dp else (float('nan'), float('nan'), 0)
+
+
+def design(rows):
+    X = np.array([[f(r) for _, f in FEATS] for r in rows], dtype=float)
+    noisy = np.array([0.0 if r['good'] else 1.0 for r in rows])
+    extra = np.stack([X[:, [n for n, _ in FEATS].index(t)] * noisy for t in TEMPO], axis=1)
+    return np.hstack([X, extra])
 
 
 def main():
     rows = load(sys.argv[1:])
-    print(f'{len(rows)} positions')
     vals = np.array([r['value'] for r in rows])
     y = (vals + 1) / 2
+    good = np.array([r['good'] for r in rows])
     plies = np.array([r['ply'] for r in rows])
-    X = np.array([[f(r) for _, f in FEATS] for r in rows], dtype=float)
+    print(f'{len(rows)} positions ({good.sum()} from good play)')
+    for name, m in (('noisy', ~good), ('good', good)):
+        if m.any():
+            v = vals[m]
+            print(f'  {name}: side to move wins {np.mean(v == 1):.1%}, draws {np.mean(v == 0):.1%}, loses {np.mean(v == -1):.1%}')
+    X = design(rows)
     ev = np.array([r['eval'] for r in rows], dtype=float)
-    print('value distribution (stm): loss %d draw %d win %d' % ((vals == -1).sum(), (vals == 0).sum(), (vals == 1).sum()))
-    # hold-out split
+    # hold-out split by game so consecutive plies stay together
+    gid = np.array([r['file'] * 100000 + r.get('game', i) for i, r in enumerate(rows)])
+    ug = np.unique(gid)
     rng = np.random.default_rng(0)
-    idx = rng.permutation(len(rows))
-    cut = int(len(rows) * 0.8)
-    tr, te = idx[:cut], idx[cut:]
+    test_games = set(rng.choice(ug, size=len(ug) // 5, replace=False))
+    te = np.array([g in test_games for g in gid])
+    tr = ~te
     w = fit(X[tr], y[tr])
-    print('test set:')
-    report('old hand eval (scaled)', ev[te] / 150, y[te], vals[te])
-    report('fitted', X[te] @ w, y[te], vals[te])
-    for ply in sorted(set(plies)):
-        m = te[plies[te] == ply]
-        if len(m) > 30:
-            report(f'fitted, ply {ply} (n={len(m)})', X[m] @ w, y[m], vals[m])
-    # single-feature diagnostics
-    print('single features (test logloss when fitted alone with bias):')
-    for j, (name, _) in enumerate(FEATS[1:], start=1):
-        wj = fit(X[tr][:, [0, j]], y[tr])
-        report(name, X[te][:, [0, j]] @ wj, y[te], vals[te])
+    nb = len(FEATS)
+    logit_all = X[:, :nb] @ w[:nb]  # inference: good-play tempo terms only
+    for name, m in (('all', te), ('good-play', te & good)):
+        if m.any():
+            ll, acc = metrics(logit_all[m], y[m], vals[m])
+            print(f'test {name:10s} logloss {ll:.4f}  decisive-accuracy {acc:.3f}  (n={m.sum()})')
+    if (te & good).any():
+        for ply in sorted(set(plies[te & good])):
+            m = te & good & (plies == ply)
+            ll, acc = metrics(logit_all[m], y[m], vals[m])
+            print(f'   good ply {ply:2d}: logloss {ll:.4f} accuracy {acc:.3f} (n={m.sum()})')
+        jp, jt, n = jumpiness(rows, logit_all, te & good)
+        print(f'jumpiness on good-play test games: predicted {jp:.3f}, exact {jt:.3f}  ({n} consecutive pairs)')
+        old = ev / 100.0
+        jp0, _, _ = jumpiness(rows, old, te & good)
+        print(f'   (eval column stored in the data, i.e. the eval used when generating: {jp0:.3f})')
     w = fit(X, y)  # final fit on everything
-    print('weights:')
-    for (name, _), wi in zip(FEATS, w):
+    print('weights (exported):')
+    for (name, _), wi in zip(FEATS, w[:nb]):
         print(f'  {name:12s} {wi:+.4f}')
+    print('noisy-data tempo terms (not exported): ' + ', '.join(f'{t} {wi:+.3f}' for t, wi in zip(TEMPO, w[nb:])))
     with open('src/eval_weights.hpp', 'w') as f:
         f.write('// Generated by tools/fit_eval.py from solver-labelled positions. Logistic weights.\n')
         f.write('#pragma once\n')
-        for (name, _), wi in zip(FEATS, w):
+        for (name, _), wi in zip(FEATS, w[:nb]):
             f.write(f'constexpr double W_{name} = {wi:.6f};\n')
-    print('wrote src/eval_weights.hpp')
     out = sys.argv[0].replace('fit_eval.py', '') + '../data/weights_latest.txt'
     with open(out, 'w') as f:
-        for (name, _), wi in zip(FEATS, w):
+        for (name, _), wi in zip(FEATS, w[:nb]):
             f.write(f'{name} {wi:.6f}\n')
-    print('wrote', out)
+    print('wrote src/eval_weights.hpp and', out)
 
 
 if __name__ == '__main__':

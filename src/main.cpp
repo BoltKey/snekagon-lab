@@ -342,9 +342,10 @@ int main(int argc, char** argv) {
         double secs = argc > 5 ? std::atof(argv[5]) : 5;
         int threads = argc > 6 ? std::atoi(argv[6]) : 8;
         uint64_t seed = argc > 7 ? std::atoll(argv[7]) : 7;
+        bool goodPlay = argc > 8 && std::string(argv[8]) == "good";
         std::atomic<int> next{0};
         std::mutex mu;
-        printf("ply,stm,value");
+        printf("game,ply,stm,value");
         const char* names[] = {"L", "rem", "pieces", "terr", "bestTerr", "bestOwn", "lb", "ub", "fresh", "ends", "liveEnds", "singleOwn", "singleTerr", "comps"};
         for (const char* side : {"s", "o"}) for (const char* n : names) printf(",%s_%s", n, side);
         printf(",eval\n");
@@ -361,6 +362,11 @@ int main(int argc, char** argv) {
                     double temp = 40 + rng.below(160);  // centi-cells
                     double randP = 0.05 + 0.2 * rng.uni();
                     bool growPolicy = g % 2 == 1;
+                    if (goodPlay) {  // random first two plies, then (almost) greedy 1-ply play
+                        temp = 10 + rng.below(30);
+                        randP = 0;
+                        growPolicy = false;
+                    }
                     while (!s.over() && s.ply <= plyMax) {
                         if (s.ply >= plyMin) {
                             solver.clear();
@@ -370,7 +376,7 @@ int main(int argc, char** argv) {
                                 features(s, f);
                                 int e = evaluateHand(s);
                                 std::lock_guard<std::mutex> lk(mu);
-                                printf("%d,%d,%d", (int)s.ply, (int)s.stm, v);
+                                printf("%d,%d,%d,%d", g, (int)s.ply, (int)s.stm, v);
                                 for (int c : {(int)s.stm, (int)s.stm ^ 1}) {
                                     auto& x = f[c];
                                     printf(",%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", x.L, x.rem, x.pieces, x.terr, x.bestTerr, x.bestOwn, x.lb, x.ub, x.fresh, x.ends, x.liveEnds, x.singleOwn, x.singleTerr, x.comps);
@@ -381,7 +387,7 @@ int main(int argc, char** argv) {
                         }
                         s.genMoves(mv);
                         if (mv.empty()) { s.play(Move{}); continue; }
-                        if (rng.uni() < randP || s.ply == 0) { s.play(mv[rng.below((int)mv.size())]); continue; }
+                        if (rng.uni() < randP || s.ply == 0 || (goodPlay && s.ply == 1)) { s.play(mv[rng.below((int)mv.size())]); continue; }
                         if (growPolicy) {
                             // prefer growing an own snake (mostly the longest one), sometimes block
                             std::vector<Move> grow;
@@ -425,6 +431,32 @@ int main(int argc, char** argv) {
                r.value == -9 ? "unknown" : std::to_string(r.value).c_str(), known, r.perMove.size(), (unsigned long long)r.nodes, r.seconds);
         for (auto& pm : r.perMove)
             if (pm.second != -9) printf("  %-22s %s\n", moveStr(pm.first).c_str(), pm.second > 0 ? "win" : pm.second < 0 ? "loss" : "draw");
+    } else if (mode == "evaltrace") {
+        // snek evaltrace <maxDepth> <seconds> <threads> <moves...>
+        // For every position of the game: static eval and fixed-depth search results,
+        // all as red's (player 1's) win probability.
+        int maxD = std::atoi(argv[2]);
+        double secs = std::atof(argv[3]);
+        int threads = std::atoi(argv[4]);
+        Pos s = Pos::start();
+        std::vector<Move> moves;
+        for (int i = 5; i < argc; i++) { Move m; if (!parseMove(argv[i], m)) { printf("bad move %s\n", argv[i]); return 1; } moves.push_back(m); }
+        printf("ply stm  static");
+        for (int d = 1; d <= maxD; d++) printf("   d%d  ", d);
+        printf("  move played\n");
+        for (size_t k = 0; k <= moves.size() && !s.over(); k++) {
+            auto red = [&](int score) { double p = scoreToWinProb(score); return s.stm == 0 ? p : 1 - p; };
+            printf("%3d  %s  %5.1f%%", (int)s.ply, s.stm == 0 ? "R" : "B", 100 * red(evaluate(s)));
+            if (s.ply > 0)
+                for (int d = 1; d <= maxD; d++) {
+                    AbAnalysis a = abAnalyze(s, secs, threads, 1, d);
+                    printf("  %5.1f%%", 100 * red(a.moves[0].score));
+                    if (a.depth < d) printf("(%d)", a.depth);
+                }
+            printf("   %s\n", k < moves.size() ? moveStr(moves[k]).c_str() : "");
+            fflush(stdout);
+            if (k < moves.size()) s.play(moves[k]);
+        }
     } else if (mode == "speed") {
         // micro-benchmarks of the hot functions on positions from random games
         Rng rng(5);

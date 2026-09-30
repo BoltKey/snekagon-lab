@@ -55,7 +55,7 @@ struct AbSearcher {
 
     bool checkAbort() {
         if (aborted) return true;
-        if ((nodes & 1023) == 0) {
+        if ((nodes & 63) == 0) {  // inner nodes are expensive (1-ply eval of all children): check often
             if ((stop && stop->load(std::memory_order_relaxed)) || std::chrono::steady_clock::now() > deadline) aborted = true;
         }
         return aborted;
@@ -111,6 +111,7 @@ struct AbSearcher {
         if (depth >= 2) {
             // order by 1-ply evaluation, keep the best `width`
             for (int i = 0; i < n; i++) {
+                if ((++nodes & 63) == 0 && checkAbort()) return 0;
                 Pos c = s; c.play(mv[i]);
                 sc[i] = c.over() ? -terminalScore(c) : -evaluate(c);
                 if (mv[i].gid == ttMove) sc[i] += 10 * WIN;
@@ -133,10 +134,14 @@ struct AbSearcher {
         std::vector<int> idx(n);
         for (int i = 0; i < n; i++) idx[i] = i;
         std::sort(idx.begin(), idx.end(), [&](int a, int b) { return sc[a] > sc[b]; });
-        if (depth >= 2 && n > AP.width) n = AP.width;
+        // forward pruning: only the best `width` moves at depth >= 2 - unless every move
+        // tried so far is a proven loss (otherwise a pruned move could still save the game
+        // and we would report a false "forced win" for the opponent)
+        int limit = depth >= 2 ? std::min(n, AP.width) : n;
 
         int a0 = alpha, best = -INF, bestGid = -1;
         for (int k = 0; k < n; k++) {
+            if (k >= limit && best > -WIN / 2) break;
             Move m = mv[idx[k]];
             Pos c = s; c.play(m);
             int v;

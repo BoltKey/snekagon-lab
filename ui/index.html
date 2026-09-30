@@ -47,6 +47,8 @@
   .hist { font-family: ui-monospace, monospace; font-size: 12px; max-height: 180px; overflow: auto; }
   .hist span { cursor: pointer; padding: 1px 3px; border-radius: 3px; }
   .hist span:hover { background: #eee; }
+  .hist span.cur { background: #ffe082; font-weight: 600; }
+  .hist span.future { opacity: .45; }
   .muted { color: var(--muted); font-size: 12px; }
   label { user-select: none; }
   h3 { margin: 12px 0 6px; font-size: 14px; }
@@ -56,7 +58,10 @@
 <header>
   <h1>🐍 Snekagon Lab</h1>
   <button id="bNew">Nová hra</button>
-  <button id="bUndo">Zpět</button>
+  <button id="bFirst" title="Na začátek (Home)">⏮</button>
+  <button id="bBack" title="O tah zpět (←)">◀</button>
+  <button id="bFwd" title="O tah vpřed (→)">▶</button>
+  <button id="bLast" title="Na konec partie (End)">⏭</button>
   <button id="bPass">Pass</button>
   <span>|</span>
   <label>Čas enginu <select id="secs"><option>1</option><option selected>3</option><option>10</option><option>30</option><option>60</option></select> s</label>
@@ -95,13 +100,14 @@ const qr = i => [i % 11 - 5, Math.floor(i / 11) - 5];
 const px = (q, r) => [SZ * S3 * (q + r / 2), SZ * 1.5 * r];
 const hexPts = (x, y, s = SZ) => [...Array(6)].map((_, k) => { const a = Math.PI / 180 * (60 * k - 30); return (x + s * Math.cos(a)).toFixed(1) + ',' + (y + s * Math.sin(a)).toFixed(1); }).join(' ');
 
+let game = [];  // full move list of the game (the current position may be an earlier point of it)
 let st = null, sel = null, hoverCell = null, candIdx = 0, preview = null, busy = false, lastAnalysis = null;
 
 async function cmd(c) {
   const r = await fetch('/cmd', { method: 'POST', body: c });
   return r.json();
 }
-function setBusy(b) { busy = b; document.querySelectorAll('header button').forEach(x => x.disabled = b); document.body.style.cursor = b ? 'progress' : ''; }
+function setBusy(b) { busy = b; document.querySelectorAll('header button').forEach(x => x.disabled = b); document.body.style.cursor = b ? 'progress' : ''; if (!b && st) render(); }
 
 // ---------- board ----------
 const svg = document.getElementById('board');
@@ -194,8 +200,16 @@ function render() {
   document.getElementById('bPass').disabled = busy || st.over || st.legal.length > 0;
   // history
   const h = document.getElementById('hist');
-  h.innerHTML = st.history.map((m, k) => `<span data-k="${k}" style="color:var(--p${k % 2 === 0 ? 0 : 1})">${k}. ${m.s}</span>`).join(' ');
+  const cur = st.history.length;
+  h.innerHTML = `<span data-k="-1" class="${cur === 0 ? 'cur' : ''}">začátek</span> ` + game.map((m, k) =>
+    `<span data-k="${k}" class="${k === cur - 1 ? 'cur' : k >= cur ? 'future' : ''}" style="color:var(--p${k % 2 === 0 ? 0 : 1})">${k}. ${m}</span>`).join(' ');
   h.querySelectorAll('span').forEach(sp => sp.onclick = () => gotoPly(+sp.dataset.k + 1));
+  const curEl = h.querySelector('.cur');
+  if (curEl) curEl.scrollIntoView({ block: 'nearest' });
+  document.getElementById('bBack').disabled = busy || cur === 0;
+  document.getElementById('bFirst').disabled = busy || cur === 0;
+  document.getElementById('bFwd').disabled = busy || cur >= game.length;
+  document.getElementById('bLast').disabled = busy || cur >= game.length;
 }
 function miniPiece(p, pl) {
   const pts = SHAPES[p].map(([q, r]) => px(q, r));
@@ -209,6 +223,9 @@ function miniPiece(p, pl) {
 async function apply(res) {
   if (!res.ok) { alert(res.error || 'chyba'); return false; }
   st = res.state || res;
+  const h = st.history.map(m => m.s);
+  const isPrefix = h.length <= game.length && h.every((m, i) => m === game[i]);
+  if (!isPrefix) game = h;
   if (!st.over && (!sel || !st.avail[st.stm].includes(sel) || !st.legal.some(m => m.p === sel))) {
     const lp = st.legal.map(m => m.p);
     sel = [...st.avail[st.stm]].reverse().find(p => lp.includes(p)) || null;
@@ -227,10 +244,11 @@ async function playMove(s) {
 }
 async function gotoPly(n) {
   if (busy) return;
-  const hs = st.history.slice(0, n).map(m => m.s).join(' ');
+  n = Math.max(0, Math.min(n, game.length));
   setBusy(true);
-  await apply(await cmd('set ' + hs));
+  await apply(await cmd('set ' + game.slice(0, n).join(' ')));
   setBusy(false);
+  render();
 }
 const secs = () => document.getElementById('secs').value;
 async function engineMove() {
@@ -299,15 +317,11 @@ function showAnalysis(a, played) {
   });
 }
 
-document.getElementById('bNew').onclick = async () => { setBusy(true); await apply(await cmd('new')); setBusy(false); maybeAuto(); };
-document.getElementById('bUndo').onclick = async () => {
-  setBusy(true);
-  // undo back to the last human decision
-  let n = st.history.length - 1;
-  while (n > 0 && document.getElementById('auto' + (n % 2)).checked) n--;
-  await apply(await cmd('set ' + st.history.slice(0, Math.max(0, n)).map(m => m.s).join(' ')));
-  setBusy(false);
-};
+document.getElementById('bNew').onclick = async () => { setBusy(true); game = []; await apply(await cmd('new')); setBusy(false); maybeAuto(); };
+document.getElementById('bFirst').onclick = () => gotoPly(0);
+document.getElementById('bBack').onclick = () => gotoPly(st.history.length - 1);
+document.getElementById('bFwd').onclick = () => gotoPly(st.history.length + 1);
+document.getElementById('bLast').onclick = () => gotoPly(game.length);
 document.getElementById('bPass').onclick = () => playMove('pass');
 document.getElementById('bGo').onclick = engineMove;
 document.getElementById('bAn').onclick = analyzeNow;
@@ -343,7 +357,12 @@ document.getElementById('bSolve').onclick = async () => {
 };
 document.getElementById('eng').onchange = async (e) => { await cmd('engine ' + e.target.value); };
 document.addEventListener('keydown', e => {
-  if (!st || st.over) return;
+  if (!st || e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowLeft') { e.preventDefault(); gotoPly(st.history.length - 1); return; }
+  if (e.key === 'ArrowRight') { e.preventDefault(); gotoPly(st.history.length + 1); return; }
+  if (e.key === 'Home') { e.preventDefault(); gotoPly(0); return; }
+  if (e.key === 'End') { e.preventDefault(); gotoPly(game.length); return; }
+  if (st.over) return;
   const k = +e.key;
   if (k >= 1 && k <= 8) { const p = PIECES[k - 1]; if (st.avail[st.stm].includes(p)) { sel = p; candIdx = 0; updatePreview(); } }
   if (e.key === 'r' || e.key === 'R') { candIdx++; updatePreview(); }
