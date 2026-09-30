@@ -281,6 +281,10 @@ class ThreadedTCP(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
 
 
+class ThreadedHTTP(socketserver.ThreadingMixIn, http.server.HTTPServer):  # (ThreadingHTTPServer needs 3.7)
+    daemon_threads = True
+
+
 # ------------------------------------------------------------- status ----
 def status():
     with lock:
@@ -378,7 +382,7 @@ def main():
         ensure_active()
         save_state()
     threading.Thread(target=saver, daemon=True).start()
-    httpd = http.server.ThreadingHTTPServer(('0.0.0.0', HTTP_PORT), StatusHandler)
+    httpd = ThreadedHTTP(('0.0.0.0', HTTP_PORT), StatusHandler)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     srv = ThreadedTCP(('0.0.0.0', WORKER_PORT), WorkerHandler)
     log('coordinator: workers on port %d, status page on port %d' % (WORKER_PORT, HTTP_PORT))
