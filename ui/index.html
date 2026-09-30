@@ -69,6 +69,7 @@
   <button id="bGo">Engine táhni</button>
   <button id="bAn">Analyzuj</button>
   <button id="bSolve" title="Exaktní řešení (výhra/remíza/prohra) v časovém limitu">Vyřešit</button>
+  <label title="Každou zobrazenou pozici (i při procházení partie) krátce analyzovat"><input type="checkbox" id="live" checked> živé hodnocení</label>
   <label><input type="checkbox" id="auto0"> engine hraje <b style="color:var(--p0)">červeného</b></label>
   <label><input type="checkbox" id="auto1" checked> engine hraje <b style="color:var(--p1)">modrého</b></label>
 </header>
@@ -233,7 +234,43 @@ async function apply(res) {
   lastAnalysis = null;
   document.getElementById('anl').textContent = 'Zatím bez analýzy.';
   updatePreview();
+  scheduleLive();
   return true;
+}
+
+// ---------- live evaluation of the shown position (cached per position) ----------
+const LIVE_SECS = 1;
+const evalCache = new Map();  // position key (move list) -> analysis
+let liveTimer = null, liveSeq = 0, pendingEngine = false, engineNote = null;
+const posKey = () => st.history.map(m => m.s).join(' ');
+function storeAnalysis(k, a) {
+  const old = evalCache.get(k);
+  if (!old || a.exact || (a.depth || 0) >= (old.depth || 0)) evalCache.set(k, a);
+}
+function scheduleLive() {
+  clearTimeout(liveTimer);
+  if (!st) return;
+  if (st.over) { showGameOver(); return; }
+  const k = posKey();
+  if (evalCache.has(k)) { showAnalysis(evalCache.get(k), false); return; }
+  if (!document.getElementById('live').checked) return;
+  document.getElementById('anl').textContent = 'Počítám hodnocení…';
+  liveTimer = setTimeout(runLive, 250);
+}
+async function runLive() {
+  if (!st || st.over || busy || pendingEngine) return;
+  const k = posKey(), seq = ++liveSeq;
+  const a = await cmd('analyze ' + LIVE_SECS);
+  if (!a.ok) return;
+  storeAnalysis(k, a);
+  if (seq === liveSeq && st && posKey() === k) showAnalysis(a, false);
+}
+function showGameOver() {
+  const [a, b] = st.longest;
+  const p0 = a > b ? 1 : a < b ? 0 : 0.5;
+  document.getElementById('evalFill').style.width = (p0 * 100) + '%';
+  document.getElementById('evalTxt').innerHTML = 'konec hry';
+  document.getElementById('anl').innerHTML = `Konec hry: červený ${a}, modrý ${b}.`;
 }
 async function playMove(s) {
   if (busy) return;
@@ -252,25 +289,28 @@ async function gotoPly(n) {
 }
 const secs = () => document.getElementById('secs').value;
 async function engineMove() {
-  if (busy || !st || st.over) return;
+  if (busy || !st || st.over) { pendingEngine = false; return; }
   setBusy(true);
+  const preKey = posKey();
   const res = await cmd('go ' + secs());
-  const a = res.analysis;
+  pendingEngine = false;
+  if (res.ok && res.analysis) storeAnalysis(preKey, res.analysis);
+  if (res.ok) engineNote = { key: preKey + (preKey ? ' ' : '') + res.played.s, text: 'Engine zahrál ' + res.played.s + '.' };
   await apply(res);
-  if (a) showAnalysis(a, true);
   setBusy(false);
   maybeAuto();
 }
 async function analyzeNow() {
   if (busy || !st || st.over) return;
   setBusy(true);
+  const k = posKey();
   const a = await cmd('analyze ' + secs());
   setBusy(false);
-  if (a.ok) showAnalysis(a, false);
+  if (a.ok) { storeAnalysis(k, a); if (posKey() === k) showAnalysis(a, false); }
 }
 function maybeAuto() {
   if (!st || st.over) return;
-  if (document.getElementById('auto' + st.stm).checked) setTimeout(engineMove, 50);
+  if (document.getElementById('auto' + st.stm).checked) { pendingEngine = true; clearTimeout(liveTimer); setTimeout(engineMove, 50); }
 }
 function valTxt(v) { return v === 1 ? '<span class="win">výhra</span>' : v === -1 ? '<span class="loss">prohra</span>' : '<span class="drawc">remíza</span>'; }
 function fmtScore(m) {
@@ -306,7 +346,8 @@ function showAnalysis(a, played) {
   const rows = a.moves.slice(0, 25).map((m, k) =>
     `<tr class="mv" data-k="${k}"><td>${k + 1}</td><td>${m.m.s}</td><td>${fmtScore(m)}</td><td class="muted">${a.engine === 'mcts' ? m.n : ''}</td></tr>`).join('');
   const el = document.getElementById('anl');
-  el.innerHTML = `<div>${played ? 'Engine zahrál ' + b.m.s + '. ' : ''}${head}</div>
+  const note = engineNote && st && engineNote.key === posKey() ? engineNote.text + ' ' : '';
+  el.innerHTML = `<div>${note}${head}</div>
     <div class="muted">${a.engine === 'ab' ? 'Odhad šance na výhru hráče na tahu po daném tahu (naučená hodnoticí funkce + prohledávání); „≤“ = jen horní mez (tah je horší než nejlepší).' : ''}</div>
     <table><tr><th>#</th><th>tah</th><th>hodnota</th><th>${a.engine === 'mcts' ? 'návštěvy' : ''}</th></tr>${rows}</table>`;
   el.querySelectorAll('tr.mv').forEach(tr => {
@@ -317,6 +358,7 @@ function showAnalysis(a, played) {
   });
 }
 
+document.getElementById('live').onchange = () => scheduleLive();
 document.getElementById('bNew').onclick = async () => { setBusy(true); game = []; await apply(await cmd('new')); setBusy(false); maybeAuto(); };
 document.getElementById('bFirst').onclick = () => gotoPly(0);
 document.getElementById('bBack').onclick = () => gotoPly(st.history.length - 1);

@@ -173,6 +173,7 @@ struct RootResult {
     int score = 0;
     bool exact = false;  // score is exact (not just an upper bound)
     int depth = 0;
+    int display = 0;     // score averaged over the last two iterations (damps odd/even swings)
 };
 
 struct AbAnalysis {
@@ -220,7 +221,7 @@ inline AbAnalysis abAnalyze(const Pos& root, double seconds, int threads, int mu
         if (c.over()) v = -terminalScore(c);
         else if (pool[0]->exactKnown(c, v)) v = -v;
         else v = -evaluate(c);
-        cur[i].score = v; cur[i].exact = true; cur[i].depth = 1;
+        cur[i].score = v; cur[i].exact = true; cur[i].depth = 1; cur[i].display = v;
     }
     std::stable_sort(cur.begin(), cur.end(), [](auto& a, auto& b) { return a.score > b.score; });
     AbAnalysis res;
@@ -282,6 +283,16 @@ inline AbAnalysis abAnalyze(const Pos& root, double seconds, int threads, int mu
             if (a.exact != b.exact) return a.exact;
             return a.score > b.score;
         });
+        // odd/even smoothing for display: average with the previous iteration where both are exact
+        for (auto& r : next) {
+            r.display = r.score;
+            if (!r.exact || std::abs(r.score) >= WIN / 2) continue;
+            for (auto& p : res.moves)
+                if (p.mv == r.mv) {
+                    if (p.exact && std::abs(p.score) < WIN / 2) r.display = (r.score + p.score) / 2;
+                    break;
+                }
+        }
         res.moves = next;
         res.depth = depth;
         if (next[0].exact && next[0].score >= WIN / 2) break;  // proven win found

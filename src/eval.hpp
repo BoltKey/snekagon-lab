@@ -23,7 +23,8 @@ struct EvalInfo {
 };
 
 // Voronoi split of the growable space between the two players.
-inline void voronoi(const Pos& s, const Shape sh[2], BB claim[2]) {
+inline void voronoi(const Pos& s, const Shape sh[2], BB claim[2], int head = -1) {
+    if (head < 0) head = EP.head;
     BB E = s.empty();
     BB G[2], F[2];
     for (int c = 0; c < 2; c++) {
@@ -36,7 +37,7 @@ inline void voronoi(const Pos& s, const Shape sh[2], BB claim[2]) {
     for (int t = 0; t < 64; t++) {
         BB na = t == 0 ? F[a] : expand(front[a]) & G[a];
         na &= ~visited;
-        int tb = t - EP.head;
+        int tb = t - head;
         BB nb = tb < 0 ? 0 : tb == 0 ? F[b] : expand(front[b]) & G[b];
         nb &= ~visited;
         BB both = na & nb;
@@ -78,10 +79,10 @@ inline int estimateFinal(const Pos& s, int c, const Shape& sh, BB myClaim, BB op
 struct PlayerFeat {
     int L, rem, pieces, terr, bestTerr, bestOwn, lb, ub, fresh, ends, liveEnds, singleOwn, singleTerr, comps;
 };
-inline void features(const Pos& s, PlayerFeat f[2]) {
+inline void features(const Pos& s, PlayerFeat f[2], int head) {
     Shape sh[2] = {shapeOf(s.own[0]), shapeOf(s.own[1])};
     BB claim[2];
-    voronoi(s, sh, claim);
+    voronoi(s, sh, claim, head);
     BB occ = s.occ();
     for (int c = 0; c < 2; c++) {
         PlayerFeat& x = f[c];
@@ -130,6 +131,7 @@ enum { F_bias, F_dL, F_dSingle, F_dCluster, F_dDeficit, F_dUB, F_dRem, F_dTerr20
 inline const char* FEAT_NAMES[NFEAT] = {"bias", "dL", "dSingle", "dCluster", "dDeficit", "dUB", "dRem", "dTerr20", "dTerr", "dSingleTerr", "dComps", "dLiveEnds", "dFresh", "stmIsP1"};
 // weight sets: 0 = compiled in, 1 = loaded at runtime (engine "ab:<file>")
 inline double EW[2][NFEAT] = {{W_bias, W_dL, W_dSingle, W_dCluster, W_dDeficit, W_dUB, W_dRem, W_dTerr20, W_dTerr, W_dSingleTerr, W_dComps, W_dLiveEnds, W_dFresh, W_stmIsP1}, {}};
+inline int EHEAD[2] = {EVAL_HEAD, 0};  // Voronoi head start the weights were trained with
 inline int g_evalSet = 0;
 inline bool loadWeights(const std::string& path, int set) {
     FILE* f = fopen(path.c_str(), "r");
@@ -137,15 +139,18 @@ inline bool loadWeights(const std::string& path, int set) {
     char name[64];
     double w;
     int n = 0;
-    while (fscanf(f, "%63s %lf", name, &w) == 2)
+    EHEAD[set] = 1;  // files without a "head" line were trained with head start 1
+    while (fscanf(f, "%63s %lf", name, &w) == 2) {
+        if (std::string(name) == "head") EHEAD[set] = (int)w;
         for (int i = 0; i < NFEAT; i++) if (std::string(name) == FEAT_NAMES[i]) { EW[set][i] = w; n++; }
+    }
     fclose(f);
     return n == NFEAT;
 }
 
 inline void featureVector(const Pos& s, double x[NFEAT]) {
     PlayerFeat f[2];
-    features(s, f);
+    features(s, f, EHEAD[g_evalSet]);
     const PlayerFeat& a = f[s.stm];
     const PlayerFeat& b = f[s.stm ^ 1];
     auto single = [](const PlayerFeat& p) { return p.singleOwn + std::min(p.rem, p.singleTerr); };

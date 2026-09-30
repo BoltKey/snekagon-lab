@@ -6,6 +6,7 @@
 //   snek selfplay <games> <seconds/move>
 #include <atomic>
 #include <cstdio>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <sstream>
@@ -55,6 +56,63 @@ static Pos randomPosition(int plies, Rng& rng) {
         }
         if (!s.over()) return s;
     }
+}
+
+// ---- training data rows ----------------------------------------------------------
+static std::string hex128(BB b) {
+    char buf[40];
+    snprintf(buf, sizeof buf, "%016llx%016llx", (unsigned long long)(uint64_t)(b >> 64), (unsigned long long)(uint64_t)b);
+    return buf;
+}
+static BB parseHex128(const std::string& h) {
+    BB r = 0;
+    for (char c : h) r = r * 16 + (BB)(c >= '0' && c <= '9' ? c - '0' : c - 'a' + 10);
+    return r;
+}
+// own0_own1_avail0_avail1_stm_ply_passes
+static std::string posStr(const Pos& s) {
+    return hex128(s.own[0]) + "_" + hex128(s.own[1]) + "_" + std::to_string(s.avail[0]) + "_" + std::to_string(s.avail[1]) +
+           "_" + std::to_string(s.stm) + "_" + std::to_string(s.ply) + "_" + std::to_string(s.passes);
+}
+static bool parsePosStr(const std::string& str, Pos& s) {
+    std::vector<std::string> f;
+    size_t i = 0;
+    while (i <= str.size()) {
+        size_t j = str.find('_', i);
+        if (j == std::string::npos) j = str.size();
+        f.push_back(str.substr(i, j - i));
+        i = j + 1;
+    }
+    if (f.size() != 7) return false;
+    s = Pos{};
+    s.own[0] = parseHex128(f[0]); s.own[1] = parseHex128(f[1]);
+    s.avail[0] = (uint8_t)std::stoi(f[2]); s.avail[1] = (uint8_t)std::stoi(f[3]);
+    s.stm = (uint8_t)std::stoi(f[4]); s.ply = (uint8_t)std::stoi(f[5]); s.passes = (uint8_t)std::stoi(f[6]);
+    s.initHash();
+    return true;
+}
+static void printDataHeader() {
+    printf("game,ply,stm,value");
+    const char* names[] = {"L", "rem", "pieces", "terr", "bestTerr", "bestOwn", "lb", "ub", "fresh", "ends", "liveEnds", "singleOwn", "singleTerr", "comps"};
+    for (const char* side : {"s", "o"}) for (const char* n : names) printf(",%s_%s", n, side);
+    printf(",eval,pos\n");
+}
+static std::string dataRow(int g, const Pos& s, int v, int head) {
+    PlayerFeat f[2];
+    features(s, f, head);
+    char buf[512];
+    std::string row;
+    snprintf(buf, sizeof buf, "%d,%d,%d,%d", g, (int)s.ply, (int)s.stm, v);
+    row += buf;
+    for (int c : {(int)s.stm, (int)s.stm ^ 1}) {
+        auto& x = f[c];
+        snprintf(buf, sizeof buf, ",%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", x.L, x.rem, x.pieces, x.terr, x.bestTerr, x.bestOwn, x.lb, x.ub, x.fresh, x.ends, x.liveEnds, x.singleOwn, x.singleTerr, x.comps);
+        row += buf;
+    }
+    snprintf(buf, sizeof buf, ",%d,", evaluateHand(s));
+    row += buf;
+    row += posStr(s) + "\n";
+    return row;
 }
 
 // ---- analysis used by the UI / arena ------------------------------------------
@@ -129,7 +187,7 @@ static Analysis analyzeAb(const Pos& s, double seconds, int threads, Solver& sol
         int ex = -9;
         if (m.exact && m.score >= WIN / 2) ex = 1;
         else if (m.score <= -WIN / 2) ex = -1;
-        a.items.push_back({m.mv, m.exact ? 1 : 0, scoreToWinProb(m.score), ex, m.score});
+        a.items.push_back({m.mv, m.exact ? 1 : 0, scoreToWinProb(m.exact ? m.display : m.score), ex, m.score});
     }
     a.depth = r.depth;
     a.engine = "ab";
@@ -343,12 +401,10 @@ int main(int argc, char** argv) {
         int threads = argc > 6 ? std::atoi(argv[6]) : 8;
         uint64_t seed = argc > 7 ? std::atoll(argv[7]) : 7;
         bool goodPlay = argc > 8 && std::string(argv[8]) == "good";
+        int featHead = argc > 9 ? std::atoi(argv[9]) : 0;  // Voronoi head start for the feature columns
         std::atomic<int> next{0};
         std::mutex mu;
-        printf("game,ply,stm,value");
-        const char* names[] = {"L", "rem", "pieces", "terr", "bestTerr", "bestOwn", "lb", "ub", "fresh", "ends", "liveEnds", "singleOwn", "singleTerr", "comps"};
-        for (const char* side : {"s", "o"}) for (const char* n : names) printf(",%s_%s", n, side);
-        printf(",eval\n");
+        printDataHeader();
         std::vector<std::thread> th;
         for (int w = 0; w < threads; w++)
             th.emplace_back([&, w] {
@@ -372,16 +428,9 @@ int main(int argc, char** argv) {
                             solver.clear();
                             int v = solver.solve(s, secs);
                             if (v != -9) {
-                                PlayerFeat f[2];
-                                features(s, f);
-                                int e = evaluateHand(s);
+                                std::string row = dataRow(g, s, v, featHead);
                                 std::lock_guard<std::mutex> lk(mu);
-                                printf("%d,%d,%d,%d", g, (int)s.ply, (int)s.stm, v);
-                                for (int c : {(int)s.stm, (int)s.stm ^ 1}) {
-                                    auto& x = f[c];
-                                    printf(",%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", x.L, x.rem, x.pieces, x.terr, x.bestTerr, x.bestOwn, x.lb, x.ub, x.fresh, x.ends, x.liveEnds, x.singleOwn, x.singleTerr, x.comps);
-                                }
-                                printf(",%d\n", e);
+                                fputs(row.c_str(), stdout);
                                 fflush(stdout);
                             }
                         }
@@ -438,12 +487,14 @@ int main(int argc, char** argv) {
         int maxD = std::atoi(argv[2]);
         double secs = std::atof(argv[3]);
         int threads = std::atoi(argv[4]);
+        int exactFrom = getenv("EXACT_FROM") ? std::atoi(getenv("EXACT_FROM")) : 99;
+        double exactSecs = getenv("EXACT_SECS") ? std::atof(getenv("EXACT_SECS")) : 30;
         Pos s = Pos::start();
         std::vector<Move> moves;
         for (int i = 5; i < argc; i++) { Move m; if (!parseMove(argv[i], m)) { printf("bad move %s\n", argv[i]); return 1; } moves.push_back(m); }
         printf("ply stm  static");
         for (int d = 1; d <= maxD; d++) printf("   d%d  ", d);
-        printf("  move played\n");
+        printf("  exact   move played\n");
         for (size_t k = 0; k <= moves.size() && !s.over(); k++) {
             auto red = [&](int score) { double p = scoreToWinProb(score); return s.stm == 0 ? p : 1 - p; };
             printf("%3d  %s  %5.1f%%", (int)s.ply, s.stm == 0 ? "R" : "B", 100 * red(evaluate(s)));
@@ -453,6 +504,12 @@ int main(int argc, char** argv) {
                     printf("  %5.1f%%", 100 * red(a.moves[0].score));
                     if (a.depth < d) printf("(%d)", a.depth);
                 }
+            if (s.ply >= exactFrom) {
+                auto r = parallelSolve(s, exactSecs, threads, 21);
+                int v = r.value;
+                if (v == -9) printf("     ?  ");
+                else { int red = s.stm == 0 ? v : -v; printf("  %5s ", red > 0 ? "R win" : red < 0 ? "B win" : "draw"); }
+            } else printf("        ");
             printf("   %s\n", k < moves.size() ? moveStr(moves[k]).c_str() : "");
             fflush(stdout);
             if (k < moves.size()) s.play(moves[k]);
@@ -479,6 +536,27 @@ int main(int argc, char** argv) {
         bench("snakeBounds", [&](const Pos& p) { int a, b; snakeBounds(p, 0, a, b); return (long)b; });
         bench("evalHand", [&](const Pos& p) { return (long)evaluateHand(p); });
         bench("evalLearned", [&](const Pos& p) { return (long)evaluate(p); });
+    } else if (mode == "refeature") {
+        // snek refeature <in.csv> <head>: recompute feature columns from the stored positions
+        std::ifstream in(argv[2]);
+        int head = argc > 3 ? std::atoi(argv[3]) : 0;
+        std::string line;
+        std::getline(in, line);
+        std::vector<std::string> cols;
+        { std::stringstream ss(line); std::string c; while (std::getline(ss, c, ',')) cols.push_back(c); }
+        int ig = -1, iv = -1, ip = -1;
+        for (int i = 0; i < (int)cols.size(); i++) { if (cols[i] == "game") ig = i; if (cols[i] == "value") iv = i; if (cols[i] == "pos") ip = i; }
+        if (ip < 0) { fprintf(stderr, "no pos column\n"); return 1; }
+        printDataHeader();
+        while (std::getline(in, line)) {
+            std::vector<std::string> f;
+            std::stringstream ss(line); std::string c;
+            while (std::getline(ss, c, ',')) f.push_back(c);
+            if ((int)f.size() != (int)cols.size()) continue;
+            Pos s;
+            if (!parsePosStr(f[ip], s)) continue;
+            fputs(dataRow(ig >= 0 ? std::stoi(f[ig]) : 0, s, std::stoi(f[iv]), head).c_str(), stdout);
+        }
     } else if (mode == "arena") {
         // engine A vs engine B from random openings (random 1-hex + random reply),
         // every opening played twice with colours swapped.
