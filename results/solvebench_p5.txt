@@ -1,0 +1,3 @@
+plies=5 pos=0 value(stm)=1 nodes=18951036 time=31.254s knps=606
+plies=5 pos=4 value(stm)=1 nodes=36635026 time=65.274s knps=561
+plies=5 pos=3 value(stm)=1 nodes=44689049 time=65.745s knps=680

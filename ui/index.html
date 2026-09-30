@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snekagon Lab</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --panel: #fffdf8; --ink: #2b2620; --muted: #7a7064; --line: #d9d0c2;
+    --board: #6b4a2f; --cell: #7d5a3c; --cellHover: #8f6a4a;
+    --p0: #c62828; --p0soft: #ef9a9a; --p1: #1e5bd8; --p1soft: #90b4f5;
+    --good: #2e7d32; --bad: #c62828; --draw: #8d6e00;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+  header { padding: 10px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 18px; margin: 0 12px 0 0; }
+  button { font: inherit; padding: 5px 10px; border: 1px solid var(--line); background: #fff; border-radius: 6px; cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  button.sel { background: var(--ink); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; padding: 16px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  svg#board { width: 100%; max-height: 78vh; display: block; }
+  .hex { stroke: #4a321f; stroke-width: 1.5; }
+  .hex.empty { fill: var(--cell); }
+  .hex.p0 { fill: var(--p0); }
+  .hex.p1 { fill: var(--p1); }
+  .hex.last { stroke: #fff; stroke-width: 3; }
+  .hex.prev0 { fill: var(--p0soft); }
+  .hex.prev1 { fill: var(--p1soft); }
+  .hex.hint { fill: #ffe082; }
+  .lbl { font-size: 9px; fill: #fff8; pointer-events: none; text-anchor: middle; dominant-baseline: middle; }
+  .tray { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .tray button { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 52px; }
+  .tray svg { width: 44px; height: 30px; }
+  .status { font-size: 15px; margin-bottom: 6px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+  .evalbar { height: 14px; border-radius: 7px; overflow: hidden; background: var(--p1); margin: 8px 0; position: relative; }
+  .evalbar > div { height: 100%; background: var(--p0); transition: width .3s; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { padding: 3px 4px; border-bottom: 1px solid var(--line); text-align: left; }
+  tr.mv { cursor: pointer; }
+  tr.mv:hover { background: #f0e9dc; }
+  .win { color: var(--good); font-weight: 600; } .loss { color: var(--bad); font-weight: 600; } .drawc { color: var(--draw); font-weight: 600; }
+  .hist { font-family: ui-monospace, monospace; font-size: 12px; max-height: 180px; overflow: auto; }
+  .hist span { cursor: pointer; padding: 1px 3px; border-radius: 3px; }
+  .hist span:hover { background: #eee; }
+  .muted { color: var(--muted); font-size: 12px; }
+  label { user-select: none; }
+  h3 { margin: 12px 0 6px; font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐍 Snekagon Lab</h1>
+  <button id="bNew">Nová hra</button>
+  <button id="bUndo">Zpět</button>
+  <button id="bPass">Pass</button>
+  <span>|</span>
+  <label>Čas enginu <select id="secs"><option>1</option><option selected>3</option><option>10</option><option>30</option><option>60</option></select> s</label>
+  <button id="bGo">Engine táhni</button>
+  <button id="bAn">Analyzuj</button>
+  <label><input type="checkbox" id="auto0"> engine hraje <b style="color:var(--p0)">červeného</b></label>
+  <label><input type="checkbox" id="auto1" checked> engine hraje <b style="color:var(--p1)">modrého</b></label>
+</header>
+<main>
+  <div class="card">
+    <div class="status" id="status"></div>
+    <div class="tray" id="tray"></div>
+    <svg id="board"></svg>
+    <div class="muted">Vyber dílek (klávesy 1–8), najeď na pole, kolečkem myši / R / pravým tlačítkem přepínáš polohy dílku přes to pole, klik = zahrát.</div>
+  </div>
+  <div>
+    <div class="card">
+      <b>Hodnocení</b> <span class="muted" id="evalTxt"></span>
+      <div class="evalbar"><div id="evalFill" style="width:50%"></div></div>
+      <div id="anl" class="muted">Zatím bez analýzy.</div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <b>Partie</b>
+      <div class="hist" id="hist"></div>
+    </div>
+  </div>
+</main>
+<script>
+const SZ = 30, S3 = Math.sqrt(3);
+const PIECES = ['1','2','3I','3V','4I','4A','4B','4C'];
+const SHAPES = {'1':[[0,0]],'2':[[0,0],[1,0]],'3I':[[0,0],[0,1],[0,2]],'3V':[[0,0],[1,0],[1,1]],
+  '4I':[[0,0],[-1,1],[-2,2],[-3,3]],'4A':[[0,0],[1,0],[1,1],[1,2]],'4B':[[0,0],[0,1],[1,1],[1,2]],'4C':[[0,0],[-1,1],[-1,2],[0,2]]};
+const qr = i => [i % 11 - 5, Math.floor(i / 11) - 5];
+const px = (q, r) => [SZ * S3 * (q + r / 2), SZ * 1.5 * r];
+const hexPts = (x, y, s = SZ) => [...Array(6)].map((_, k) => { const a = Math.PI / 180 * (60 * k - 30); return (x + s * Math.cos(a)).toFixed(1) + ',' + (y + s * Math.sin(a)).toFixed(1); }).join(' ');
+
+let st = null, sel = null, hoverCell = null, candIdx = 0, preview = null, busy = false, lastAnalysis = null;
+
+async function cmd(c) {
+  const r = await fetch('/cmd', { method: 'POST', body: c });
+  return r.json();
+}
+function setBusy(b) { busy = b; document.querySelectorAll('header button').forEach(x => x.disabled = b); document.body.style.cursor = b ? 'progress' : ''; }
+
+// ---------- board ----------
+const svg = document.getElementById('board');
+const cells = [];
+(function buildBoard() {
+  const NS = 'http://www.w3.org/2000/svg';
+  let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+  const g = document.createElementNS(NS, 'g');
+  for (let i = 0; i < 121; i++) {
+    const [q, r] = qr(i);
+    if (Math.abs(q + r) > 5) continue;
+    const [x, y] = px(q, r);
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    const p = document.createElementNS(NS, 'polygon');
+    p.setAttribute('points', hexPts(x, y, SZ - 1));
+    p.classList.add('hex', 'empty');
+    p.dataset.i = i;
+    p.addEventListener('mouseenter', () => { hoverCell = i; candIdx = 0; updatePreview(); });
+    p.addEventListener('click', () => { if (preview) playMove(preview.s); });
+    p.addEventListener('contextmenu', e => { e.preventDefault(); candIdx++; updatePreview(); });
+    g.appendChild(p);
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', x); t.setAttribute('y', y); t.classList.add('lbl'); t.textContent = i;
+    g.appendChild(t);
+    cells[i] = p;
+  }
+  const bg = document.createElementNS(NS, 'polygon');
+  bg.setAttribute('points', hexPts(0, 0, 10.1 * SZ));
+  bg.setAttribute('fill', 'var(--board)');
+  bg.setAttribute('transform', 'rotate(30)');
+  svg.appendChild(bg);
+  svg.appendChild(g);
+  svg.setAttribute('viewBox', `${minX - SZ * 1.6} ${minY - SZ * 1.6} ${maxX - minX + SZ * 3.2} ${maxY - minY + SZ * 3.2}`);
+  svg.addEventListener('mouseleave', () => { hoverCell = null; updatePreview(); });
+  svg.addEventListener('wheel', e => { if (hoverCell != null) { e.preventDefault(); candIdx += e.deltaY > 0 ? 1 : -1; updatePreview(); } }, { passive: false });
+})();
+
+function candidates() {
+  if (!st || hoverCell == null || !sel) return [];
+  return st.legal.filter(m => m.p === sel && m.c.includes(hoverCell));
+}
+function updatePreview(external) {
+  preview = external || null;
+  if (!external) {
+    const cs = candidates();
+    if (cs.length) preview = cs[((candIdx % cs.length) + cs.length) % cs.length];
+  }
+  render();
+}
+
+function render() {
+  if (!st) return;
+  const last = st.history.length ? st.history[st.history.length - 1] : null;
+  for (let i = 0; i < 121; i++) {
+    const p = cells[i]; if (!p) continue;
+    p.setAttribute('class', 'hex ' + (st.own[0].includes(i) ? 'p0' : st.own[1].includes(i) ? 'p1' : 'empty'));
+    if (last && last.c.includes(i)) p.classList.add('last');
+  }
+  if (preview) for (const i of preview.c) cells[i].setAttribute('class', 'hex prev' + st.stm);
+  // status
+  const who = st.stm === 0 ? '<span class="dot" style="background:var(--p0)"></span>červený' : '<span class="dot" style="background:var(--p1)"></span>modrý';
+  let s;
+  if (st.over) {
+    const [a, b] = st.longest;
+    s = `<b>Konec hry.</b> Červený ${a}, modrý ${b} → ${a > b ? 'vyhrál červený' : a < b ? 'vyhrál modrý' : 'remíza'}`;
+  } else {
+    s = `Tah ${st.ply}: na tahu ${who}. ${st.legal.length} legálních tahů.`;
+  }
+  s += `<div class="muted">Nejdelší had: červený ${st.longest[0]} (max ${st.bounds[0][1]}), modrý ${st.longest[1]} (max ${st.bounds[1][1]})</div>`;
+  document.getElementById('status').innerHTML = s;
+  // tray
+  const tray = document.getElementById('tray');
+  tray.innerHTML = '';
+  if (!st.over) {
+    const legalPieces = new Set(st.legal.map(m => m.p));
+    for (const p of st.avail[st.stm]) {
+      const b = document.createElement('button');
+      b.innerHTML = miniPiece(p, st.stm) + `<span>${p}</span>`;
+      if (p === sel) b.classList.add('sel');
+      if (!legalPieces.has(p)) b.disabled = true;
+      b.onclick = () => { sel = p; updatePreview(); };
+      tray.appendChild(b);
+    }
+    const other = document.createElement('span');
+    other.className = 'muted';
+    other.style.alignSelf = 'center';
+    other.textContent = 'soupeři zbývá: ' + st.avail[1 - st.stm].join(', ');
+    tray.appendChild(other);
+  }
+  document.getElementById('bPass').disabled = busy || st.over || st.legal.length > 0;
+  // history
+  const h = document.getElementById('hist');
+  h.innerHTML = st.history.map((m, k) => `<span data-k="${k}" style="color:var(--p${k % 2 === 0 ? 0 : 1})">${k}. ${m.s}</span>`).join(' ');
+  h.querySelectorAll('span').forEach(sp => sp.onclick = () => gotoPly(+sp.dataset.k + 1));
+}
+function miniPiece(p, pl) {
+  const pts = SHAPES[p].map(([q, r]) => px(q, r));
+  const xs = pts.map(a => a[0]), ys = pts.map(a => a[1]);
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const sc = 0.28;
+  return `<svg viewBox="-22 -15 44 30">${pts.map(([x, y]) => `<polygon points="${hexPts((x - cx) * sc, (y - cy) * sc, SZ * sc - .5)}" fill="var(--p${pl})"/>`).join('')}</svg>`;
+}
+
+// ---------- actions ----------
+async function apply(res) {
+  if (!res.ok) { alert(res.error || 'chyba'); return false; }
+  st = res.state || res;
+  if (!st.over && (!sel || !st.avail[st.stm].includes(sel) || !st.legal.some(m => m.p === sel))) {
+    const lp = st.legal.map(m => m.p);
+    sel = [...st.avail[st.stm]].reverse().find(p => lp.includes(p)) || null;
+  }
+  lastAnalysis = null;
+  document.getElementById('anl').textContent = 'Zatím bez analýzy.';
+  updatePreview();
+  return true;
+}
+async function playMove(s) {
+  if (busy) return;
+  setBusy(true);
+  const ok = await apply(await cmd('play ' + s));
+  setBusy(false);
+  if (ok) maybeAuto();
+}
+async function gotoPly(n) {
+  if (busy) return;
+  const hs = st.history.slice(0, n).map(m => m.s).join(' ');
+  setBusy(true);
+  await apply(await cmd('set ' + hs));
+  setBusy(false);
+}
+const secs = () => document.getElementById('secs').value;
+async function engineMove() {
+  if (busy || !st || st.over) return;
+  setBusy(true);
+  const res = await cmd('go ' + secs());
+  const a = res.analysis;
+  await apply(res);
+  if (a) showAnalysis(a, true);
+  setBusy(false);
+  maybeAuto();
+}
+async function analyzeNow() {
+  if (busy || !st || st.over) return;
+  setBusy(true);
+  const a = await cmd('analyze ' + secs());
+  setBusy(false);
+  if (a.ok) showAnalysis(a, false);
+}
+function maybeAuto() {
+  if (!st || st.over) return;
+  if (document.getElementById('auto' + st.stm).checked) setTimeout(engineMove, 50);
+}
+function valTxt(v) { return v === 1 ? '<span class="win">výhra</span>' : v === -1 ? '<span class="loss">prohra</span>' : '<span class="drawc">remíza</span>'; }
+function showAnalysis(a, played) {
+  lastAnalysis = a;
+  const mover = a.stm; // stm when analysed
+  const color = mover === 0 ? 'červeného' : 'modrého';
+  let p0; // probability-ish for red
+  let head;
+  if (a.exact) {
+    const v = a.value;
+    head = `Vyřešeno: ${valTxt(v)} pro ${color}`;
+    const vRed = mover === 0 ? v : -v;
+    p0 = vRed === 1 ? 1 : vRed === -1 ? 0 : 0.5;
+  } else {
+    const b = a.moves[0];
+    const wr = b ? b.wr : 0.5;
+    p0 = mover === 0 ? wr : 1 - wr;
+    head = `MCTS odhad: ${(wr * 100).toFixed(0)} % pro ${color}` + (b && b.exact !== -9 ? ` (nejlepší tah vyřešen: ${valTxt(b.exact)})` : '');
+  }
+  document.getElementById('evalFill').style.width = (p0 * 100).toFixed(0) + '%';
+  document.getElementById('evalTxt').innerHTML = `červený ${(p0 * 100).toFixed(0)} %`;
+  const rows = a.moves.slice(0, 25).map((m, k) => {
+    const ev = m.exact !== -9 ? valTxt(m.exact) : `${(m.wr * 100).toFixed(1)} %`;
+    return `<tr class="mv" data-k="${k}"><td>${k + 1}</td><td>${m.m.s}</td><td>${ev}</td><td class="muted">${a.exact ? '' : m.n}</td></tr>`;
+  }).join('');
+  const el = document.getElementById('anl');
+  el.innerHTML = `<div>${played ? 'Engine zahrál ' + a.moves[0].m.s + '. ' : ''}${head}</div>
+    <table><tr><th>#</th><th>tah</th><th>hodnota</th><th>${a.exact ? '' : 'návštěvy'}</th></tr>${rows}</table>`;
+  el.querySelectorAll('tr.mv').forEach(tr => {
+    const m = a.moves[+tr.dataset.k].m;
+    tr.onmouseenter = () => { if (!played) updatePreview(m); };
+    tr.onmouseleave = () => updatePreview();
+    tr.onclick = () => { if (!played) playMove(m.s); };
+  });
+}
+
+document.getElementById('bNew').onclick = async () => { setBusy(true); await apply(await cmd('new')); setBusy(false); maybeAuto(); };
+document.getElementById('bUndo').onclick = async () => {
+  setBusy(true);
+  // undo back to the last human decision
+  let n = st.history.length - 1;
+  while (n > 0 && document.getElementById('auto' + (n % 2)).checked) n--;
+  await apply(await cmd('set ' + st.history.slice(0, Math.max(0, n)).map(m => m.s).join(' ')));
+  setBusy(false);
+};
+document.getElementById('bPass').onclick = () => playMove('pass');
+document.getElementById('bGo').onclick = engineMove;
+document.getElementById('bAn').onclick = analyzeNow;
+document.addEventListener('keydown', e => {
+  if (!st || st.over) return;
+  const k = +e.key;
+  if (k >= 1 && k <= 8) { const p = PIECES[k - 1]; if (st.avail[st.stm].includes(p)) { sel = p; candIdx = 0; updatePreview(); } }
+  if (e.key === 'r' || e.key === 'R') { candIdx++; updatePreview(); }
+});
+(async () => { await apply(await cmd('state')); })();
+</script>
+</body>
+</html>
