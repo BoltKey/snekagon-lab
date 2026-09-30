@@ -145,7 +145,7 @@ struct Solver {
         auto& H = hist[s.stm];
         s.forEachLegal([&](Move m) {
             const Placement& pl = m.pl();
-            int sc = H[m.gid] + PSIZE[m.piece()] * 64;
+            int sc = H[m.gid] + PIECE_CELLS[m.piece()] * 64;
             if (pl.nb & me) sc += 256;
             if (pl.m & oppFront) sc += 128;
             else if (pl.nb & opp) sc += 32;

@@ -122,7 +122,7 @@ struct AbSearcher {
             BB oppFront = expand(shapeOf(s.own[s.stm ^ 1]).ends) & s.empty();
             for (int i = 0; i < n; i++) {
                 const Placement& pl = mv[i].pl();
-                int x = H[mv[i].gid] + PSIZE[mv[i].piece()] * 64;
+                int x = H[mv[i].gid] + PIECE_CELLS[mv[i].piece()] * 64;
                 if (pl.nb & me) x += 512;
                 if (pl.m & oppFront) x += 256;
                 if (mv[i].gid == ttMove) x = 1 << 30;

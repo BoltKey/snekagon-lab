@@ -6,7 +6,8 @@ Engine, exact solver and a play/analysis UI for **Snekagon** (2-player abstract 
 
 ```bash
 # build (g++ 13, static so the exe runs without MinGW DLLs on PATH)
-g++ -O3 -march=native -std=c++20 -pthread -static -o build/snek.exe src/main.cpp
+g++ -O3 -march=native -std=c++20 -pthread -static -o build/snek.exe src/main.cpp -lws2_32   # Windows (MinGW)
+bash dist/build.sh                                                                    # Linux
 
 # UI: http://localhost:8080  (second arg = engine threads)
 node ui/server.js 8080 10
@@ -137,6 +138,24 @@ ply-3/ply-4 problem like the pilot: ~1589 × ~5.5 thread-hours × (1.5–3 overh
 i.e. roughly 1–3 months of this laptop (Ryzen 7 5800H, 16 threads) running 24/7, or ~1 day on 1000 cloud
 cores. Units are independent jobs (resumable, see `results/jobs/`), so any number of machines can share the
 work.
+
+## Distributed solve of the centre opening (`dist/`)
+
+Proves (or refutes) that after `1:60 4B:16,27,28,39` blue wins: for each of red's 1589 replies the
+coordinator tries blue candidates (learned-eval order) and sends every red answer as a unit (position
+after 5 moves) to the workers. A unit that does not come back as a blue win discards the candidate.
+
+On a Linux box (runs nonstop, coordinator + local worker):
+
+```bash
+sudo apt install build-essential python3
+bash dist/start.sh          # builds build/snek, starts coordinator + worker, prints the status URL
+bash dist/stop.sh           # stop (state in results/dist/ is kept, start.sh resumes)
+```
+
+Other machines on the same network join with `snek worker <ip>:8090 <threads>` (Windows:
+`snek.exe worker …`). Status page: `http://<ip>:8091/`. Earlier verification results from
+`results/jobs/` are reused automatically.
 
 ## Tools
 

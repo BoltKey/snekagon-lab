@@ -40,7 +40,7 @@ constexpr int DR[6] = {0, -1, -1, 0, 1, 1};
 // Shapes read off the print & play sheet. Pieces are double-sided (may flip).
 enum { P1 = 0, P2, P3I, P3V, P4I, P4A, P4B, P4C };
 inline const char* PNAME[NPIECE] = {"1", "2", "3I", "3V", "4I", "4A", "4B", "4C"};
-inline const int PSIZE[NPIECE] = {1, 2, 3, 3, 4, 4, 4, 4};
+inline const int PIECE_CELLS[NPIECE] = {1, 2, 3, 3, 4, 4, 4, 4};
 inline const std::vector<std::pair<int, int>> PSHAPE[NPIECE] = {
     {{0, 0}},
     {{0, 0}, {1, 0}},
@@ -249,7 +249,7 @@ inline void initTables() {
         can[0] = true;
         for (int p = 0; p < NPIECE; p++)
             if (m >> p & 1)
-                for (int s = NIDX; s >= PSIZE[p]; s--) if (can[s - PSIZE[p]]) can[s] = true;
+                for (int s = NIDX; s >= PIECE_CELLS[p]; s--) if (can[s - PIECE_CELLS[p]]) can[s] = true;
         int best = 0;
         for (int n = 0; n <= NIDX; n++) { if (can[n]) best = n; T.fit[m][n] = (uint8_t)best; }
     }
@@ -484,7 +484,7 @@ inline int longest(BB b) {
 }
 inline int remainingCells(uint8_t av) {
     int s = 0;
-    for (int p = 0; p < NPIECE; p++) if (av >> p & 1) s += PSIZE[p];
+    for (int p = 0; p < NPIECE; p++) if (av >> p & 1) s += PIECE_CELLS[p];
     return s;
 }
 inline int pieceCount(uint8_t av) { return __builtin_popcount(av); }

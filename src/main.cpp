@@ -16,6 +16,7 @@
 #include "mcts.hpp"
 #include "search.hpp"
 #include "solver.hpp"
+#include "worker.hpp"
 
 static uint64_t perft(const Pos& s, int d) {
     if (d == 0 || s.over()) return 1;
@@ -338,6 +339,29 @@ static void serve(int threads) {
                 o << "]}";
                 out = o.str();
             }
+        } else if (cmd == "children") {
+            // children <moves...>: symmetry-unique legal moves of that position, best first by the
+            // learned evaluation (from the mover's point of view); used by the coordinator
+            Pos p = Pos::start();
+            std::string tok;
+            bool ok = true;
+            while (in >> tok) { Move m; if (!parseMove(tok, m) || !p.legalMove(m)) { ok = false; break; } p.play(m); }
+            if (!ok) out = "{\"ok\":false,\"error\":\"illegal move\"}";
+            else {
+                std::vector<Move> mv = uniqueRootMoves(p);
+                std::vector<std::pair<double, Move>> sc;
+                for (Move m : mv) {
+                    Pos c = p; c.play(m);
+                    double e = c.over() ? -Solver::terminalValue(c) * 100.0 : -learnedLogit(c);
+                    sc.push_back({e, m});
+                }
+                std::stable_sort(sc.begin(), sc.end(), [](auto& a, auto& b) { return a.first > b.first; });
+                std::ostringstream o;
+                o << "{\"ok\":true,\"ply\":" << (int)p.ply << ",\"stm\":" << (int)p.stm << ",\"over\":" << (p.over() ? "true" : "false") << ",\"moves\":[";
+                for (size_t i = 0; i < sc.size(); i++) o << (i ? "," : "") << "{\"s\":\"" << moveStr(sc[i].second) << "\",\"e\":" << sc[i].first << "}";
+                o << "]}";
+                out = o.str();
+            }
         } else if (cmd == "engine") {
             std::string e;
             in >> e;
@@ -541,6 +565,17 @@ int main(int argc, char** argv) {
                r.value == -9 ? "unknown" : std::to_string(r.value).c_str(), known, r.perMove.size(), (unsigned long long)r.nodes, r.seconds);
         for (auto& pm : r.perMove)
             if (pm.second != -9) printf("  %-22s %s\n", moveStr(pm.first).c_str(), pm.second > 0 ? "win" : pm.second < 0 ? "loss" : "draw");
+    } else if (mode == "worker") {
+        // snek worker <host[:port]> [threads] [name]
+        if (argc < 3) { printf("usage: snek worker <coordinator-ip[:port]> [threads] [name]\n"); return 1; }
+        int threads = argc > 3 ? std::atoi(argv[3]) : (int)std::max(1u, std::thread::hardware_concurrency());
+        char hn[128] = "worker";
+#ifdef _WIN32
+        { DWORD n = sizeof hn; GetComputerNameA(hn, &n); }
+#else
+        gethostname(hn, sizeof hn);
+#endif
+        return runWorker(argv[2], threads, argc > 4 ? argv[4] : hn);
     } else if (mode == "benchset") {
         // snek benchset <file> <threads>: exact solve of every position in the file (one move
         // list per line). Threads take positions in order and keep their solver between
