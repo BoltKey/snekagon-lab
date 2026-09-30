@@ -489,6 +489,8 @@ int main(int argc, char** argv) {
             if (!prev.empty()) printf("resuming: %zu root moves already solved\n", prev.size());
             prog = fopen(pf, "a");
         }
+        printf("root moves: %zu  ply %d stm %d\n", uniqueRootMoves(s).size(), (int)s.ply, (int)s.stm);
+        fflush(stdout);
         auto t0 = std::chrono::steady_clock::now();
         size_t done = prev.size();
         auto r = parallelSolve(s, secs, threads, 22, prev, [&](Move m, int v, uint64_t nodes, double sec) {

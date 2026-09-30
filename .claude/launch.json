@@ -1,6 +1,6 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "snekagon-ui", "runtimeExecutable": "node", "runtimeArgs": ["ui/server.js", "8080", "12"], "port": 8080 }
+    { "name": "snekagon-ui", "runtimeExecutable": "node", "runtimeArgs": ["ui/server.js", "8080", "4", "12"], "port": 8080 }
   ]
 }

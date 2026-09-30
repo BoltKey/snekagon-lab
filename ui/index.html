@@ -87,6 +87,18 @@
       <div id="anl" class="muted">Zatím bez analýzy.</div>
     </div>
     <div class="card" style="margin-top:12px">
+      <b>Exaktní ověření</b>
+      <label class="muted" style="float:right" title="Jakmile se zahraje 4. tah, spustí se exaktní ověření pozice"><input type="checkbox" id="autoVerify" checked> po 4. tahu automaticky</label>
+      <div id="jobInfo" class="muted" style="margin-top:4px">…</div>
+      <div class="evalbar" style="background:#e8e2d6"><div id="jobFill" style="width:0%;background:#8d6e00"></div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button id="bVerify">Exaktně ověřit tuto pozici</button>
+        <button id="bJobShow">Zobrazit ověřovanou pozici</button>
+        <button id="bJobStop">Zastavit</button>
+      </div>
+      <div id="jobResult" style="margin-top:6px"></div>
+    </div>
+    <div class="card" style="margin-top:12px">
       <b>Partie</b>
       <div class="hist" id="hist"></div>
     </div>
@@ -248,6 +260,7 @@ function storeAnalysis(k, a) {
   if (!old || a.exact || (a.depth || 0) >= (old.depth || 0)) evalCache.set(k, a);
 }
 function scheduleLive() {
+  refreshJobCard();
   clearTimeout(liveTimer);
   if (!st) return;
   if (st.over) { showGameOver(); return; }
@@ -277,7 +290,7 @@ async function playMove(s) {
   setBusy(true);
   const ok = await apply(await cmd('play ' + s));
   setBusy(false);
-  if (ok) maybeAuto();
+  if (ok) { maybeAutoVerify(); maybeAuto(); }
 }
 async function gotoPly(n) {
   if (busy) return;
@@ -298,6 +311,7 @@ async function engineMove() {
   if (res.ok) engineNote = { key: preKey + (preKey ? ' ' : '') + res.played.s, text: 'Engine zahrál ' + res.played.s + '.' };
   await apply(res);
   setBusy(false);
+  maybeAutoVerify();
   maybeAuto();
 }
 async function analyzeNow() {
@@ -409,7 +423,101 @@ document.addEventListener('keydown', e => {
   if (k >= 1 && k <= 8) { const p = PIECES[k - 1]; if (st.avail[st.stm].includes(p)) { sel = p; candIdx = 0; updatePreview(); } }
   if (e.key === 'r' || e.key === 'R') { candIdx++; updatePreview(); }
 });
+// ---------- exact verification jobs (separate solver process on the server) ----------
+let jobPoll = null, runningMoves = null, shownJob = null;
+async function fetchJob(moves) {
+  const r = await fetch('/job/status' + (moves !== undefined ? '?moves=' + encodeURIComponent(moves) : ''));
+  return r.json();
+}
+async function startVerify(moves) {
+  const r = await (await fetch('/job/start', { method: 'POST', body: moves })).json();
+  if (!r.ok) { alert(r.error); return; }
+  runningMoves = moves;
+  pollJob();
+}
+function pollJob() {
+  clearTimeout(jobPoll);
+  const tick = async () => {
+    const j = await fetchJob(runningMoves ?? undefined);
+    if (!j.running) runningMoves = null;
+    renderJob(j);
+    if (j.running) jobPoll = setTimeout(tick, 3000);
+  };
+  tick();
+}
+async function refreshJobCard() {
+  if (runningMoves !== null || !st) return;  // the running job stays on display
+  renderJob(await fetchJob(posKey()), true);
+}
+function maybeAutoVerify() {
+  if (document.getElementById('autoVerify').checked && st && !st.over && st.history.length === 4) startVerify(posKey());
+}
+const plural = (n, a, b, c) => n === 1 ? a : n >= 2 && n <= 4 ? b : c;
+function renderJob(j, forShown) {
+  shownJob = j.exists ? j : null;
+  const info = document.getElementById('jobInfo'), resEl = document.getElementById('jobResult');
+  document.getElementById('bJobStop').disabled = !j.running;
+  document.getElementById('bJobShow').disabled = !j.exists || (st && j.moves === posKey());
+  if (!j.exists) {
+    info.textContent = forShown ? 'Tato pozice zatím ověřená není.' : 'Žádné ověření.';
+    resEl.innerHTML = '';
+    document.getElementById('jobFill').style.width = '0%';
+    return;
+  }
+  const mv = j.moves.split(' ');
+  const p = mv.length, stmName = p % 2 === 0 ? 'červený' : 'modrý', stmGen = p % 2 === 0 ? 'červeného' : 'modrého';
+  const oppGen = p % 2 === 0 ? 'modrého' : 'červeného';
+  const total = j.total || '?';
+  document.getElementById('jobFill').style.width = j.total ? (100 * j.solved / j.total).toFixed(1) + '%' : '0%';
+  const where = `pozice po ${p} tazích (${mv.join(' ')}), na tahu ${stmName}`;
+  const found = `výhry ${j.wins.length}, remízy ${j.draws.length}, prohry ${j.losses}`;
+  if (j.running) {
+    let eta = '';
+    if (j.avgSec && j.total) {
+      const min = (j.total - j.solved) * j.avgSec / j.threads / 60;
+      eta = min < 1 ? ', zbývá < 1 min' : `, zbývá ~${Math.round(min)} min`;
+    }
+    info.innerHTML = `Počítám: ${where}.<br>Vyřešeno ${j.solved}/${total} tahů ${stmGen} (${found})${eta}.`;
+  } else if (!j.done) {
+    info.innerHTML = `Přerušeno: ${where}. Vyřešeno ${j.solved}/${total} (${found}). Tlačítko „Exaktně ověřit“ na této pozici naváže.`;
+  } else {
+    info.innerHTML = `Hotovo: ${where}.`;
+  }
+  let verdict = '';
+  const last = p >= 1 ? `${p - 1}. ${mv[p - 1]}` : '';
+  const prev = p >= 2 ? `${p - 2}. ${mv[p - 2]}` : '';
+  if (j.done && j.value === 1)
+    verdict = `<b class="win">Vyhraná pozice pro ${stmGen}.</b> ${last ? `Poslední tah ${oppGen} (${last}) byl tedy <b>prohrávající</b>.` : ''}`;
+  else if (j.done && j.value === -1)
+    verdict = `<b class="loss">Prohraná pozice pro ${stmGen}</b> – všech ${j.total} tahů prohrává. ${last ? `Tah ${oppGen} ${last} byl <b>vítězný</b>` : ''}${prev ? `, a tah ${stmGen} ${prev} byl <b>prohrávající</b>.` : '.'}`;
+  else if (j.done && j.value === 0)
+    verdict = `<b class="drawc">Remíza při dokonalé hře obou stran.</b> ${last ? `Tah ${oppGen} ${last} tedy neprohrál, ale ani nevyhrál.` : ''}`;
+  else if (j.wins.length)
+    verdict = `Nalezen vítězný tah pro ${stmGen} – pozice je vyhraná.`;
+  const good = [...j.wins.map(m => [m, 'win']), ...j.draws.map(m => [m, 'draw'])];
+  const list = good.length ? '<div class="muted">Nejlepší tahy (najetí = náhled, klik = zahrát, když je pozice zobrazená):</div>' +
+    good.slice(0, 20).map(([m, v]) => `<span class="jobmv" data-m="${m}" style="cursor:pointer;margin-right:8px">${m} ${valTxt(v === 'win' ? 1 : 0)}</span>`).join('') : '';
+  resEl.innerHTML = `<div>${verdict}</div>${list}`;
+  resEl.querySelectorAll('.jobmv').forEach(el => {
+    const m = el.dataset.m;
+    const here = () => st && j.moves === posKey();
+    el.onmouseenter = () => { if (here()) { const lm = st.legal.find(x => x.s === m); if (lm) updatePreview(lm); } };
+    el.onmouseleave = () => updatePreview();
+    el.onclick = () => { if (here()) playMove(m); };
+  });
+}
+document.getElementById('bVerify').onclick = () => { if (st && !st.over) startVerify(posKey()); };
+document.getElementById('bJobStop').onclick = async () => { await fetch('/job/stop', { method: 'POST' }); runningMoves = null; setTimeout(refreshJobCard, 500); };
+document.getElementById('bJobShow').onclick = async () => {
+  if (!shownJob) return;
+  const mv = shownJob.moves;
+  setBusy(true); game = []; await apply(await cmd('set ' + mv)); setBusy(false);
+};
+
 (async () => {
+  // show a running verification (if any) right away
+  const cur = await fetchJob();
+  if (cur.running) { runningMoves = cur.moves; pollJob(); }
   await cmd('engine ' + document.getElementById('eng').value);
   // ?moves=1:60+4B:16,27,28,39+...  opens that position (the engine stays off for both colours)
   const pm = new URLSearchParams(location.search).get('moves');

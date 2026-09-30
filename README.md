@@ -25,6 +25,13 @@ piece covering the cell with the mouse wheel / `R` / right click; click to play.
 - game navigation: ⏮ ◀ ▶ ⏭, arrow keys, Home/End, or click a move in the history. The whole game is kept;
   playing a different move in an earlier position starts a new branch.
 - checkboxes let the engine play either side.
+- **Exaktní ověření** – exact solve of the shown position as a separate background process (the UI stays
+  responsive): progress, ETA, verdict with what it implies for the last two moves, winning/drawing moves.
+  With "po 4. tahu automaticky" it starts by itself once the 4th move is played. Jobs are resumable and
+  cached in `results/jobs/` (`<id>.moves`, progress `<id>.log`, output `<id>.out`).
+- `?moves=1:60+4B:16,27,28,39+…` in the URL opens that position.
+
+Server: `node ui/server.js <port> <engineThreads> <jobThreads>` (default job threads = cores − 4).
 
 ## Rules as implemented: [RULES.md](RULES.md)
 

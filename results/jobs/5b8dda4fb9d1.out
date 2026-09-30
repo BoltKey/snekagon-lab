@@ -1,0 +1,20 @@
+root moves: 866  ply 4 stm 0
+[    72s]    1 solved  4B:31,41,52,62         loss   72.1s     43674192 nodes
+[   105s]    2 solved  4I:30,41,52,63         loss  104.3s     64666143 nodes
+[   151s]    3 solved  4C:30,40,51,52         loss  150.4s     93514190 nodes
+[   168s]    4 solved  3V:30,40,51            loss   95.5s     65185928 nodes
+[   180s]    5 solved  4B:30,41,42,53         loss   29.0s     17570716 nodes
+[   250s]    6 solved  4B:30,41,51,62         loss  250.0s    149644464 nodes
+[   375s]    7 solved  3V:50,51,62            loss  206.7s    126970396 nodes
+[   435s]    8 solved  4B:61,62,73,74         loss   60.2s     41465325 nodes
+[   458s]    9 solved  4I:31,41,51,61         win   457.7s    236965382 nodes
+ply 4 stm 0: value 1  (9/866 root moves solved, 3187672352 nodes, 457.9s)
+  3V:50,51,62            loss
+  3V:30,40,51            loss
+  4I:31,41,51,61         win
+  4I:30,41,52,63         loss
+  4B:30,41,42,53         loss
+  4B:31,41,52,62         loss
+  4B:61,62,73,74         loss
+  4B:30,41,51,62         loss
+  4C:30,40,51,52         loss
