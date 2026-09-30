@@ -40,7 +40,7 @@ colours, 1 s/move):
 | match | result |
 |---|---|
 | α-β with the hand-made eval vs MCTS (v1) | 2 : 10 |
-| α-β with the learned eval vs MCTS (v1) | **16 : 0** |
+| α-β with the learned eval vs MCTS (v1) | **16 : 0** (weights v1), **7 : 0, 1 draw** (current weights) |
 
 The hand-made eval lost because it treated all own tiles in one region as if they would be joined into one
 snake – the engine scattered pieces. The fitted weights confirm it: *number of separate snakes* has a large
