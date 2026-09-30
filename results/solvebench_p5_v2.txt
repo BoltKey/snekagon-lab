@@ -1,0 +1,8 @@
+plies=5 pos=3 value(stm)=1 nodes=3309223 time=4.501s knps=735
+plies=5 pos=4 value(stm)=1 nodes=4674177 time=6.283s knps=744
+plies=5 pos=6 value(stm)=1 nodes=10248471 time=13.912s knps=737
+plies=5 pos=0 value(stm)=1 nodes=11910954 time=15.977s knps=745
+plies=5 pos=5 value(stm)=1 nodes=13966799 time=20.229s knps=690
+plies=5 pos=1 value(stm)=1 nodes=26065660 time=38.602s knps=675
+plies=5 pos=7 value(stm)=1 nodes=40893342 time=51.014s knps=802
+plies=5 pos=2 value(stm)=1 nodes=50842787 time=55.007s knps=924

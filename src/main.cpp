@@ -140,8 +140,18 @@ static std::string g_engine = "ab";
 static Analysis analyze(const Pos& s, double seconds, int threads, Solver& solver, const std::string& engine = g_engine, int multipv = 1) {
     if (engine == "mcts") return analyzeMcts(s, seconds, threads, solver);
     g_handEval = engine == "abhand";
+    g_evalSet = 0;
+    if (engine.rfind("ab:", 0) == 0) {  // "ab:<weights file>" uses runtime-loaded weights
+        static std::string loaded;
+        if (loaded != engine) {
+            if (!loadWeights(engine.substr(3), 1)) { fprintf(stderr, "cannot load weights %s\n", engine.c_str() + 3); exit(1); }
+            loaded = engine;
+        }
+        g_evalSet = 1;
+    }
     Analysis a = analyzeAb(s, seconds, threads, solver, multipv);
     g_handEval = false;
+    g_evalSet = 0;
     return a;
 }
 
@@ -228,6 +238,25 @@ static void serve(int threads) {
                     replay(history);
                     out = "{\"ok\":true,\"played\":" + moveJson(a.items[0].mv) + ",\"analysis\":" + out + ",\"state\":" + stateJson() + "}";
                 }
+            }
+        } else if (cmd == "solve") {
+            double sec = 10;
+            in >> sec;
+            if (s.over()) { out = "{\"ok\":false,\"error\":\"game over\"}"; }
+            else {
+                auto r = parallelSolve(s, sec, threads, 21);
+                std::ostringstream o;
+                o << "{\"ok\":true,\"stm\":" << (int)s.stm << ",\"value\":" << r.value << ",\"nodes\":" << r.nodes
+                  << ",\"seconds\":" << r.seconds << ",\"moves\":[";
+                std::stable_sort(r.perMove.begin(), r.perMove.end(), [](auto& a, auto& b) {
+                    auto key = [](int v) { return v == -9 ? -0.5 : (double)v; };
+                    return key(a.second) > key(b.second);
+                });
+                size_t lim = std::min<size_t>(r.perMove.size(), 60);
+                for (size_t i = 0; i < lim; i++)
+                    o << (i ? "," : "") << "{\"m\":" << moveJson(r.perMove[i].first) << ",\"v\":" << r.perMove[i].second << "}";
+                o << "]}";
+                out = o.str();
             }
         } else if (cmd == "engine") {
             std::string e;
@@ -379,6 +408,23 @@ int main(int argc, char** argv) {
                 }
             });
         for (auto& t : th) t.join();
+    } else if (mode == "solvepos") {
+        // snek solvepos <seconds> <threads> <move> <move> ...   (parallel exact solve)
+        double secs = std::atof(argv[2]);
+        int threads = std::atoi(argv[3]);
+        Pos s = Pos::start();
+        for (int i = 4; i < argc; i++) {
+            Move m;
+            if (!parseMove(argv[i], m) || !s.legalMove(m)) { printf("illegal move %s\n", argv[i]); return 1; }
+            s.play(m);
+        }
+        auto r = parallelSolve(s, secs, threads);
+        int known = 0;
+        for (auto& pm : r.perMove) known += pm.second != -9;
+        printf("ply %d stm %d: value %s  (%d/%zu root moves solved, %llu nodes, %.1fs)\n", (int)s.ply, (int)s.stm,
+               r.value == -9 ? "unknown" : std::to_string(r.value).c_str(), known, r.perMove.size(), (unsigned long long)r.nodes, r.seconds);
+        for (auto& pm : r.perMove)
+            if (pm.second != -9) printf("  %-22s %s\n", moveStr(pm.first).c_str(), pm.second > 0 ? "win" : pm.second < 0 ? "loss" : "draw");
     } else if (mode == "speed") {
         // micro-benchmarks of the hot functions on positions from random games
         Rng rng(5);

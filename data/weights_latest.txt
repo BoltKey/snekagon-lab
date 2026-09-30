@@ -1,0 +1,14 @@
+bias 1.697464
+dL 0.091102
+dSingle 0.236212
+dCluster -0.045881
+dDeficit 0.138222
+dUB 0.165696
+dRem -0.498930
+dTerr20 -0.021810
+dTerr 0.020564
+dSingleTerr 0.056315
+dComps -0.490203
+dLiveEnds 0.025527
+dFresh -0.035368
+stmIsP1 1.156329

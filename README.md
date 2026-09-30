@@ -9,82 +9,125 @@ Engine, exact solver and a play/analysis UI for **Snekagon** (2-player abstract 
 g++ -O3 -march=native -std=c++20 -pthread -static -o build/snek.exe src/main.cpp
 
 # UI: http://localhost:8080  (second arg = engine threads)
-node ui/server.js 8080 8
+node ui/server.js 8080 10
 ```
 
-UI: pick a piece (buttons or keys `1`–`8`), hover a cell, and cycle through all legal placements of that
-piece covering the cell with the mouse wheel / `R` / right click; click to play. "Engine táhni" = engine move,
-"Analyzuj" = ranked list of moves (hover = preview on board, click = play). Checkboxes let the engine play
-either side. Click a move in the history to jump back.
+The browser UI only draws; every computation runs in the C++ engine (`ui/server.js` starts `snek.exe serve`
+and forwards each request to its stdin, one JSON line back per command).
 
-## Rules as implemented (see [RULES.md](RULES.md))
+UI: pick a piece (buttons or keys `1`–`8`), hover a cell, and cycle through all legal placements of that
+piece covering the cell with the mouse wheel / `R` / right click; click to play.
+- **Engine táhni** – engine move (engine selectable: *alfa-beta* = current engine, *MCTS* = first version).
+- **Analyzuj** – ranked moves with win probability for the side to move (hover = preview, click = play).
+- **Vyřešit** – exact parallel solve of the current position (win/draw/loss per move) within a time limit.
+- checkboxes let the engine play either side; click a move in the history to jump back.
+
+## Rules as implemented: [RULES.md](RULES.md)
+
+## Engine (v2)
+
+| Component | What it does |
+|---|---|
+| move generation (`core.hpp`) | for each of the 40 piece orientations the legality of **all anchor cells at once** is an AND/OR of shifted 128-bit boards (no-overlap, isolation for new snakes, own-degree ≤ 2, no sharp turns, touching own). ~2.6 µs for a full move list, perft 3 in 0.95 s (4.3× faster than v1). |
+| length bounds (`snakeBounds`) | **sound** lower/upper bound of each player's final longest snake: a player can never again occupy a cell next to its own snake body, so the final snake lies in one cluster of *own cells ∪ growable cells*; new cells ≤ subset-sum fit of the remaining pieces into the growable regions. Detects enclosed snakes immediately. |
+| evaluation (`eval.hpp`) | features from a Tron-style Voronoi split (who reaches which cell first from its growable snake ends), per-snake territory, bounds, number of snakes…; **logistic regression fitted on 28 580 positions whose exact result was computed by the solver** (`tools/fit_eval.py`). Hold-out: predicts the winner in 85 % of decisive positions (hand-made eval: 72 %). |
+| search (`search.hpp`) | iterative-deepening PVS α-β, TT on symmetry-canonical keys, killers/history, forward pruning (best 24 by 1-ply eval at depth ≥ 2), bound cutoffs, the exact solver once ≤ 6 pieces remain; parallel over root moves with multi-PV. Depth 4–5 in 3 s early in the game. |
+| exact solver (`solver.hpp`) | negamax over {loss, draw, win}, TT, bound cutoffs, TT/killer/history ordering + learned-eval ordering when ≥ 7 pieces remain; `parallelSolve` splits root moves over threads. |
+
+**Strength:** `snek arena` (random opening = random 1-hex + random reply, each opening played with both
+colours, 1 s/move):
+
+| match | result |
+|---|---|
+| α-β with the hand-made eval vs MCTS (v1) | 2 : 10 |
+| α-β with the learned eval vs MCTS (v1) | **16 : 0** |
+
+The hand-made eval lost because it treated all own tiles in one region as if they would be joined into one
+snake – the engine scattered pieces. The fitted weights confirm it: *number of separate snakes* has a large
+negative weight, *best single snake + its own territory* and the *sound upper bound* are the strongest positive
+features, and the side to move has a big tempo advantage.
+
+## Solving – measurements
+
+`snek solvebench <plies> <n> <timeout> <threads>` solves random positions after `<plies>` random moves
+(ply 0 = the 1-hex). Nodes on the **same positions**, v1 → v2 solver:
+
+| plies played | v1 (nodes, all 12 positions) | v2 |
+|---|---|---|
+| 7 | 5.5 M | 0.94 M |
+| 6 | > 299 M (1 timeout) | 60 M |
+| 5 (8 pos.) | 1.75 G, median ~7 min | **162 M, median ~18 s** (same values) |
+
+Positions from **good play** (`snek solvepos`, engine self-play game in `results/selfplay_*`, 6–14 threads):
+
+| position | result | cost |
+|---|---|---|
+| ply 6 (red to move) | red wins | 1.6 M nodes, 0.7 s |
+| ply 5 (blue to move) | **draw** – all 336 moves solved; the engine's actual move there loses | 173 M nodes, 73 s (6 threads) |
+| ply 4 (red to move) | **red wins** with `4B:93,94,102,103` (of 38 moves solved: 1 win, 4 draws, 33 losses); the engine played a drawing move | 1.2 G nodes, 157 s (14 threads) |
+
+### Is a full solution feasible?
+
+The cost of a proof is dominated by the side that has to answer *every* move. If red (P1) wins, the proof
+needs one good red move at plies 0, 2, 4 and all of blue's replies at plies 1 and 3: about 180 (ply 1, after
+symmetry) × ~940 (ply 3) ≈ 1.7·10⁵ ply-4 positions. The one ply-4 position measured took ~37 core-minutes
+→ order of **10⁵ core-hours** for the whole proof with today's solver (less with shared TT, transpositions
+and the many blue moves that are easy to refute; more if the game is a draw, since then both "red cannot
+win" and "blue cannot win" have to be proven).
+
+So: not a laptop job, but within reach of engineering + a rented cluster (10⁴–10⁵ core-hours). Path:
+1. strengthen the engine (more solver-labelled data, richer eval) so the principal line is right,
+2. another ~10× in the solver: proof-number search (df-pn) at the top, shared TT, tighter bounds
+   (reachable space per snake end, geometric packing), endgame decomposition into independent regions,
+3. prove bottom-up along the principal line: solve ply-4 positions in bulk as independent jobs, store results,
+4. distribute – every (first move, blue reply) pair is an independent job.
+
+## Tools
+
+| Command | Purpose |
+|---|---|
+| `snek serve [threads]` | UI protocol (below) |
+| `snek arena <pairs> <sec> <threads> <A> <B> [seed]` | engine match; engines `ab`, `abhand`, `mcts`, `ab:<weights.txt>` |
+| `snek gendata <games> <plyMin> <plyMax> <solveSec> <threads> <seed>` | labelled positions (features + exact value) as CSV |
+| `python tools/fit_eval.py data/*.csv` | fit the evaluation → `src/eval_weights.hpp`, `data/weights_latest.txt` |
+| `snek solvepos <sec> <threads> <moves…>` | parallel exact solve of a position |
+| `snek solvebench <plies> <n> <sec> <threads>` | solver benchmark on random positions |
+| `snek selfplay <games> <sec> <threads>` | engine vs itself, prints the game |
+| `snek verify [games]` | fast move generator == reference checker, bounds never violated |
+| `snek perft <d>`, `snek speed`, `snek info` | counting / micro-benchmarks |
+| `python ref/crosscheck.py [games]` | engine vs independent Python rules implementation |
+
+### Engine protocol (`snek serve [threads]`, one line in → one JSON line out)
+
+- `new`, `state`, `undo`, `set <m1> <m2> …` (position from the start), `play <m> …` (append moves)
+- move notation: `pass` or `<piece>:<cell>,<cell>,…`, cell = `(r+5)*11 + (q+5)` (axial q,r; centre = 60).
+  Pieces: `1 2 3I 3V 4I 4A 4B 4C`.
+- `analyze <sec>` / `go <sec>` – ranked moves (score = 100·logit of the win probability, ±100000 = proven),
+  `go` also plays the best move
+- `solve <sec>` – parallel exact solve
+- `engine ab|mcts`
+
+## Verification
+
+- Placement counts match the independent Python enumeration (2602 placements).
+- `ref/crosscheck.py`: legal-move sets and snake lengths identical to the Python reference (398 positions).
+- `snek verify 3000`: bit-parallel generator gives the identical move list (same order) as the per-placement
+  checker in 47 131 positions; the length bounds held for the final result in all 94 262 checks.
+- Solver v2 gives the same values as v1 on all benchmark positions.
+- `perft`: 1 → 91, 2 → 194 388, 3 → 315 706 848.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `src/core.hpp` | board (radius-5 hexagon, 91 cells, padded 11×11 → 128-bit bitboards), pieces, legality, Zobrist hashing incl. the 12 board symmetries |
-| `src/solver.hpp` | exact win/draw/loss solver: negamax α-β, TT on the symmetry-canonical key, snake-length bound cutoffs, TT-move + history ordering |
-| `src/mcts.hpp` | UCT MCTS with guided random playouts, root-parallel over threads, symmetric root moves deduplicated |
-| `src/main.cpp` | CLI: `serve` (UI protocol), `perft`, `solvebench`, `selfplay`, `info` |
-| `ref/snek_ref.py` | independent naive Python implementation of the rules |
-| `ref/crosscheck.py` | plays random games in Python and compares legal-move sets + lengths with the engine at every ply |
-| `ui/` | dependency-free Node server + single-page UI |
-| `results/` | benchmark outputs |
-
-### Engine protocol (`snek serve [threads]`, one line in → one JSON line out)
-
-- `new`, `state`, `undo`
-- `set <m1> <m2> …` – position from the start; `play <m> …` – append moves
-- move notation: `pass` or `<piece>:<cell>,<cell>,…`, cell = `(r+5)*11 + (q+5)` (axial q,r; centre = 60). Pieces: `1 2 3I 3V 4I 4A 4B 4C`.
-- `analyze <sec>` – first tries to solve every root move exactly (if ≤ 400 moves, within half the budget), otherwise MCTS.
-- `go <sec>` – analyze and play the best move.
-
-## Verification
-
-- Placement counts on the empty board match the independent Python enumeration (2602 placements total).
-- `ref/crosscheck.py 25`: legal-move sets and longest-snake lengths identical to the Python reference in all 398 positions of 25 random games.
-- `perft`: 1 → 91, 2 → 194 388, 3 → 315 706 848.
-
-## Solving – first measurements
-
-`snek solvebench <plies> <n> <timeout> <threads>`: play `<plies>` uniformly random moves from the start (the
-1-hex counts as ply 0… i.e. `plies=5` means the 1-hex + 4 real moves are on the board), then solve exactly.
-Single-threaded solver per position, ~0.5–0.9 M nodes/s.
-
-| plies already played | typical solve time | nodes |
-|---|---|---|
-| 11 | < 1 ms | 10–100 |
-| 10 | ~1 ms | 10²–10³ |
-| 9 | ~10 ms | 10³–10⁴ |
-| 8 | 5–75 ms | 10³–6·10⁴ |
-| 7 | 0.2–2 s | 10⁵–2·10⁶ |
-| 6 | 1–90 s (1 of 12 > 120 s) | 6·10⁵–10⁸ |
-| 5 | 30 s – 10 min (all 8 solved, median ~7 min) | 2·10⁷ – 5·10⁸ |
-
-Growth is roughly ×10–×30 per ply towards the start. Straight extrapolation to the empty board (5 more plies)
-is far out of reach **with the current solver** – solving the game needs algorithmic gains, not just CPU.
-Random positions are also not typical positions (random play leaves lots of scattered snakes).
-
-Observations: random positions at plies 6–11 are overwhelmingly wins for the side to move.
-
-Self-play (`snek selfplay 2 1 4`, 1 s/move, 4 threads; `results/selfplay_1s.txt`): with a 1 s budget the
-exact solver takes over from ply 9 (after 8 real moves), before that it's MCTS. MCTS rates the position
-after the centre 1-hex ~55 % for red and the reply ~68 % for blue – no reliable signal yet at this strength.
-
-## Next steps (ideas, roughly by expected payoff)
-
-1. **Better bounds.** The upper bound (sum of growable components + remaining cells) is weak early. Tighter:
-   count only pieces that still fit somewhere, reachable free space per snake end (flood fill of the free area
-   around ends), and whether components can actually be joined.
-2. **Null-window / proof-number search.** Solve "does P1 win?" and "does P1 at least draw?" separately
-   (two binary searches) – df-pn handles the huge, uneven branching much better than α-β.
-3. **Speed.** Incremental move generation (per-cell placement lists, only re-check placements near the last
-   move), cheaper bounds (incremental components). 5–10× looks realistic.
-4. **Move ordering** from MCTS priors / killer moves; enhanced transposition cutoffs.
-5. **Region decomposition** in the endgame: once free space splits into independent regions, solve them
-   separately.
-6. **Engine strength:** MCTS playouts are light (random, prefer growing an own snake). A heuristic playout
-   policy or a small learned value network would improve play a lot; the exact solver already takes over
-   when ~7–8 plies are played.
-7. **Parallel solving** of the 12 symmetry-distinct first moves (and their replies) across cores/machines.
+| `src/core.hpp` | geometry, pieces, bit-parallel move generation, bounds, notation |
+| `src/eval.hpp`, `src/eval_weights.hpp` | features, learned + hand-made evaluation |
+| `src/search.hpp` | α-β playing engine |
+| `src/solver.hpp` | exact solver, parallel solve |
+| `src/mcts.hpp` | v1 MCTS engine (kept for comparison) |
+| `src/main.cpp` | CLI + UI protocol |
+| `ref/` | independent Python reference implementation + cross-check |
+| `tools/fit_eval.py` | evaluation fitting |
+| `data/` | solver-labelled positions (`labels_v*.csv`), weight files |
+| `ui/` | Node server + single-page UI |
+| `results/` | benchmark / arena / solve logs |

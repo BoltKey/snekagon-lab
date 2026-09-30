@@ -152,6 +152,7 @@ struct Solver {
     }
 
     // Returns value for the side to move, or -9 if aborted.
+    // (parallel version: see parallelSolve below)
     int solve(const Pos& s, double seconds = 0, uint64_t maxNodes = UINT64_MAX) {
         aborted = false;
         nodes = 0;
@@ -164,3 +165,74 @@ struct Solver {
         return aborted ? -9 : v;
     }
 };
+
+// Parallel exact solve: root moves (symmetry-reduced, ordered by the learned
+// evaluation) are distributed over threads, each with its own solver/TT. Stops
+// as soon as a winning move is found. perMove receives the value of every root
+// move for the side to move (-9 = unknown).
+#include <mutex>
+#include <thread>
+struct ParallelSolveResult {
+    int value = -9;  // for the side to move, -9 unknown
+    uint64_t nodes = 0;
+    double seconds = 0;
+    std::vector<std::pair<Move, int>> perMove;
+};
+inline ParallelSolveResult parallelSolve(const Pos& root, double seconds, int threads, int ttLog2 = 22) {
+    auto t0 = std::chrono::steady_clock::now();
+    ParallelSolveResult res;
+    std::vector<Move> all, mv;
+    root.genMoves(all);
+    if (all.empty()) all.push_back(Move{});
+    std::vector<uint64_t> seen;
+    for (Move m : all) {
+        Pos c = root; c.play(m);
+        int t; uint64_t k = c.key(t);
+        if (std::find(seen.begin(), seen.end(), k) == seen.end()) { seen.push_back(k); mv.push_back(m); }
+    }
+    std::vector<double> ord(mv.size());
+    for (size_t i = 0; i < mv.size(); i++) {
+        Pos c = root; c.play(mv[i]);
+        ord[i] = c.over() ? -Solver::terminalValue(c) * 1000.0 : -learnedLogit(c);
+    }
+    std::vector<size_t> idx(mv.size());
+    for (size_t i = 0; i < idx.size(); i++) idx[i] = i;
+    std::sort(idx.begin(), idx.end(), [&](size_t a, size_t b) { return ord[a] > ord[b]; });
+    std::vector<int> val(mv.size(), -9);
+    std::atomic<bool> stop{false};
+    std::atomic<size_t> next{0};
+    std::atomic<uint64_t> nodes{0};
+    std::mutex mu;
+    threads = std::max(1, std::min<int>(threads, (int)mv.size()));
+    std::vector<std::thread> th;
+    for (int w = 0; w < threads; w++)
+        th.emplace_back([&] {
+            Solver S(ttLog2);
+            S.stop = &stop;
+            for (;;) {
+                size_t k = next++;
+                if (k >= idx.size() || stop) break;
+                size_t i = idx[k];
+                Pos c = root; c.play(mv[i]);
+                double left = seconds - std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+                if (left <= 0) break;
+                int v = S.solve(c, left);
+                nodes += S.nodes;
+                if (v == -9) continue;
+                std::lock_guard<std::mutex> lk(mu);
+                val[i] = -v;
+                if (-v == 1) stop = true;
+            }
+        });
+    for (auto& t : th) t.join();
+    int best = -2;
+    bool allKnown = true;
+    for (size_t i = 0; i < mv.size(); i++) {
+        res.perMove.push_back({mv[i], val[i]});
+        if (val[i] == -9) allKnown = false; else best = std::max(best, val[i]);
+    }
+    if (best == 1 || (allKnown && best > -2)) res.value = best;
+    res.nodes = nodes;
+    res.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+    return res;
+}

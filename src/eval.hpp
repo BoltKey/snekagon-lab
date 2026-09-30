@@ -3,6 +3,7 @@
 // final longest snake.
 #pragma once
 #include <cmath>
+#include <cstdio>
 #include "core.hpp"
 #include "eval_weights.hpp"
 
@@ -125,28 +126,54 @@ inline void features(const Pos& s, PlayerFeat f[2]) {
 
 // Learned evaluation: 100 * logit(P(side to move wins)), weights fitted on
 // solver-labelled positions (tools/fit_eval.py).
-inline double learnedLogit(const Pos& s) {
+enum { F_bias, F_dL, F_dSingle, F_dCluster, F_dDeficit, F_dUB, F_dRem, F_dTerr20, F_dTerr, F_dSingleTerr, F_dComps, F_dLiveEnds, F_dFresh, F_stmIsP1, NFEAT };
+inline const char* FEAT_NAMES[NFEAT] = {"bias", "dL", "dSingle", "dCluster", "dDeficit", "dUB", "dRem", "dTerr20", "dTerr", "dSingleTerr", "dComps", "dLiveEnds", "dFresh", "stmIsP1"};
+// weight sets: 0 = compiled in, 1 = loaded at runtime (engine "ab:<file>")
+inline double EW[2][NFEAT] = {{W_bias, W_dL, W_dSingle, W_dCluster, W_dDeficit, W_dUB, W_dRem, W_dTerr20, W_dTerr, W_dSingleTerr, W_dComps, W_dLiveEnds, W_dFresh, W_stmIsP1}, {}};
+inline int g_evalSet = 0;
+inline bool loadWeights(const std::string& path, int set) {
+    FILE* f = fopen(path.c_str(), "r");
+    if (!f) return false;
+    char name[64];
+    double w;
+    int n = 0;
+    while (fscanf(f, "%63s %lf", name, &w) == 2)
+        for (int i = 0; i < NFEAT; i++) if (std::string(name) == FEAT_NAMES[i]) { EW[set][i] = w; n++; }
+    fclose(f);
+    return n == NFEAT;
+}
+
+inline void featureVector(const Pos& s, double x[NFEAT]) {
     PlayerFeat f[2];
     features(s, f);
     const PlayerFeat& a = f[s.stm];
     const PlayerFeat& b = f[s.stm ^ 1];
-    auto single = [](const PlayerFeat& x) { return x.singleOwn + std::min(x.rem, x.singleTerr); };
-    auto cluster = [](const PlayerFeat& x) { return x.bestOwn + std::min(x.rem, x.bestTerr); };
-    auto deficit = [](const PlayerFeat& x) { return std::max(0, x.rem - x.singleTerr); };
-    double z = W_bias;
-    z += W_dL * (a.L - b.L);
-    z += W_dSingle * (single(a) - single(b));
-    z += W_dCluster * (cluster(a) - cluster(b));
-    z += W_dDeficit * (deficit(a) - deficit(b));
-    z += W_dUB * (a.ub - b.ub);
-    z += W_dRem * (a.rem - b.rem);
-    z += W_dTerr20 * (std::min(a.terr, 20) - std::min(b.terr, 20));
-    z += W_dTerr * (std::min(a.terr, 60) - std::min(b.terr, 60));
-    z += W_dSingleTerr * (std::min(a.singleTerr, 40) - std::min(b.singleTerr, 40));
-    z += W_dComps * (a.comps - b.comps);
-    z += W_dLiveEnds * (a.liveEnds - b.liveEnds);
-    z += W_dFresh * (std::min(a.fresh, 30) - std::min(b.fresh, 30));
-    z += W_stmIsP1 * (s.stm == 0 ? 1.0 : -1.0);
+    auto single = [](const PlayerFeat& p) { return p.singleOwn + std::min(p.rem, p.singleTerr); };
+    auto cluster = [](const PlayerFeat& p) { return p.bestOwn + std::min(p.rem, p.bestTerr); };
+    auto deficit = [](const PlayerFeat& p) { return std::max(0, p.rem - p.singleTerr); };
+    x[F_bias] = 1;
+    x[F_dL] = a.L - b.L;
+    x[F_dSingle] = single(a) - single(b);
+    x[F_dCluster] = cluster(a) - cluster(b);
+    x[F_dDeficit] = deficit(a) - deficit(b);
+    x[F_dUB] = a.ub - b.ub;
+    x[F_dRem] = a.rem - b.rem;
+    x[F_dTerr20] = std::min(a.terr, 20) - std::min(b.terr, 20);
+    x[F_dTerr] = std::min(a.terr, 60) - std::min(b.terr, 60);
+    x[F_dSingleTerr] = std::min(a.singleTerr, 40) - std::min(b.singleTerr, 40);
+    x[F_dComps] = a.comps - b.comps;
+    x[F_dLiveEnds] = a.liveEnds - b.liveEnds;
+    x[F_dFresh] = std::min(a.fresh, 30) - std::min(b.fresh, 30);
+    x[F_stmIsP1] = s.stm == 0 ? 1.0 : -1.0;
+}
+
+// Learned evaluation: logit(P(side to move wins)), weights fitted on
+// solver-labelled positions (tools/fit_eval.py).
+inline double learnedLogit(const Pos& s) {
+    double x[NFEAT];
+    featureVector(s, x);
+    double z = 0;
+    for (int i = 0; i < NFEAT; i++) z += EW[g_evalSet][i] * x[i];
     return z;
 }
 inline bool g_handEval = false;

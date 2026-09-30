@@ -97,6 +97,11 @@ def main():
         for (name, _), wi in zip(FEATS, w):
             f.write(f'constexpr double W_{name} = {wi:.6f};\n')
     print('wrote src/eval_weights.hpp')
+    out = sys.argv[0].replace('fit_eval.py', '') + '../data/weights_latest.txt'
+    with open(out, 'w') as f:
+        for (name, _), wi in zip(FEATS, w):
+            f.write(f'{name} {wi:.6f}\n')
+    print('wrote', out)
 
 
 if __name__ == '__main__':

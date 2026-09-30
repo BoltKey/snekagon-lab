@@ -63,6 +63,7 @@
   <label>Engine <select id="eng"><option value="ab" selected>alfa-beta</option><option value="mcts">MCTS (starý)</option></select></label>
   <button id="bGo">Engine táhni</button>
   <button id="bAn">Analyzuj</button>
+  <button id="bSolve" title="Exaktní řešení (výhra/remíza/prohra) v časovém limitu">Vyřešit</button>
   <label><input type="checkbox" id="auto0"> engine hraje <b style="color:var(--p0)">červeného</b></label>
   <label><input type="checkbox" id="auto1" checked> engine hraje <b style="color:var(--p1)">modrého</b></label>
 </header>
@@ -310,6 +311,36 @@ document.getElementById('bUndo').onclick = async () => {
 document.getElementById('bPass').onclick = () => playMove('pass');
 document.getElementById('bGo').onclick = engineMove;
 document.getElementById('bAn').onclick = analyzeNow;
+document.getElementById('bSolve').onclick = async () => {
+  if (busy || !st || st.over) return;
+  setBusy(true);
+  document.getElementById('anl').textContent = 'Řeším…';
+  const r = await cmd('solve ' + Math.max(10, +secs() * 3));
+  setBusy(false);
+  if (!r.ok) return;
+  const color = r.stm === 0 ? 'červeného' : 'modrého';
+  const solved = r.moves.filter(m => m.v !== -9).length;
+  const head = r.value === -9
+    ? `Nevyřešeno v limitu (${solved}/${r.moves.length} tahů vyřešeno, ${(r.nodes / 1e6).toFixed(1)} M uzlů, ${r.seconds.toFixed(1)} s)`
+    : `Exaktně: ${valTxt(r.value)} pro ${color} (${(r.nodes / 1e6).toFixed(1)} M uzlů, ${r.seconds.toFixed(1)} s)`;
+  if (r.value !== -9) {
+    const vRed = r.stm === 0 ? r.value : -r.value;
+    const p0 = vRed === 1 ? 1 : vRed === -1 ? 0 : 0.5;
+    document.getElementById('evalFill').style.width = (p0 * 100) + '%';
+    document.getElementById('evalTxt').innerHTML = 'vyřešeno';
+  }
+  const rows = r.moves.slice(0, 30).map((m, k) =>
+    `<tr class="mv" data-k="${k}"><td>${k + 1}</td><td>${m.m.s}</td><td>${m.v === -9 ? '<span class="muted">?</span>' : valTxt(m.v)}</td></tr>`).join('');
+  const el = document.getElementById('anl');
+  el.innerHTML = `<div>${head}</div><div class="muted">Po nalezení vítězného tahu se zbytek už nepočítá.</div>
+    <table><tr><th>#</th><th>tah</th><th>hodnota</th></tr>${rows}</table>`;
+  el.querySelectorAll('tr.mv').forEach(tr => {
+    const m = r.moves[+tr.dataset.k].m;
+    tr.onmouseenter = () => updatePreview(m);
+    tr.onmouseleave = () => updatePreview();
+    tr.onclick = () => playMove(m.s);
+  });
+};
 document.getElementById('eng').onchange = async (e) => { await cmd('engine ' + e.target.value); };
 document.addEventListener('keydown', e => {
   if (!st || st.over) return;
