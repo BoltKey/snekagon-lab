@@ -170,6 +170,7 @@ struct Solver {
 // evaluation) are distributed over threads, each with its own solver/TT. Stops
 // as soon as a winning move is found. perMove receives the value of every root
 // move for the side to move (-9 = unknown).
+#include <functional>
 #include <mutex>
 #include <thread>
 struct ParallelSolveResult {
@@ -178,7 +179,11 @@ struct ParallelSolveResult {
     double seconds = 0;
     std::vector<std::pair<Move, int>> perMove;
 };
-inline ParallelSolveResult parallelSolve(const Pos& root, double seconds, int threads, int ttLog2 = 22) {
+// known: root moves whose value is already known (e.g. from an interrupted run) - skipped.
+// onResult: called (under a lock) for every newly solved root move.
+inline ParallelSolveResult parallelSolve(const Pos& root, double seconds, int threads, int ttLog2 = 22,
+                                         const std::vector<std::pair<Move, int>>& known = {},
+                                         std::function<void(Move, int, uint64_t, double)> onResult = nullptr) {
     auto t0 = std::chrono::steady_clock::now();
     ParallelSolveResult res;
     std::vector<Move> all, mv;
@@ -200,6 +205,9 @@ inline ParallelSolveResult parallelSolve(const Pos& root, double seconds, int th
     std::sort(idx.begin(), idx.end(), [&](size_t a, size_t b) { return ord[a] > ord[b]; });
     std::vector<int> val(mv.size(), -9);
     std::atomic<bool> stop{false};
+    for (auto& [m, v] : known)
+        for (size_t i = 0; i < mv.size(); i++)
+            if (mv[i] == m) { val[i] = v; if (v == 1) stop = true; }
     std::atomic<size_t> next{0};
     std::atomic<uint64_t> nodes{0};
     std::mutex mu;
@@ -213,7 +221,9 @@ inline ParallelSolveResult parallelSolve(const Pos& root, double seconds, int th
                 size_t k = next++;
                 if (k >= idx.size() || stop) break;
                 size_t i = idx[k];
+                if (val[i] != -9) continue;  // known from a previous run
                 Pos c = root; c.play(mv[i]);
+                auto ts = std::chrono::steady_clock::now();
                 double left = seconds - std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
                 if (left <= 0) break;
                 int v = S.solve(c, left);
@@ -222,6 +232,7 @@ inline ParallelSolveResult parallelSolve(const Pos& root, double seconds, int th
                 std::lock_guard<std::mutex> lk(mu);
                 val[i] = -v;
                 if (-v == 1) stop = true;
+                if (onResult) onResult(mv[i], -v, S.nodes, std::chrono::duration<double>(std::chrono::steady_clock::now() - ts).count());
             }
         });
     for (auto& t : th) t.join();

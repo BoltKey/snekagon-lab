@@ -45,7 +45,8 @@ http.createServer((req, res) => {
     });
     return;
   }
-  const file = req.url === '/' ? 'index.html' : req.url.slice(1);
+  const urlPath = decodeURIComponent(req.url.split('?')[0]);
+  const file = urlPath === '/' ? 'index.html' : urlPath.slice(1);
   const fp = path.join(__dirname, path.normalize(file).replace(/^(\.\.[\/\\])+/, ''));
   fs.readFile(fp, (err, data) => {
     if (err) { res.writeHead(404); res.end('not found'); return; }

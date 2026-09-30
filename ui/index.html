@@ -409,7 +409,19 @@ document.addEventListener('keydown', e => {
   if (k >= 1 && k <= 8) { const p = PIECES[k - 1]; if (st.avail[st.stm].includes(p)) { sel = p; candIdx = 0; updatePreview(); } }
   if (e.key === 'r' || e.key === 'R') { candIdx++; updatePreview(); }
 });
-(async () => { await cmd('engine ' + document.getElementById('eng').value); await apply(await cmd('state')); })();
+(async () => {
+  await cmd('engine ' + document.getElementById('eng').value);
+  // ?moves=1:60+4B:16,27,28,39+...  opens that position (the engine stays off for both colours)
+  const pm = new URLSearchParams(location.search).get('moves');
+  if (pm) {
+    document.getElementById('auto0').checked = false;
+    document.getElementById('auto1').checked = false;
+    game = [];
+    const r = await cmd('set ' + pm.trim());
+    if (r.ok) { await apply(r); return; }
+  }
+  await apply(await cmd('state'));
+})();
 </script>
 </body>
 </html>

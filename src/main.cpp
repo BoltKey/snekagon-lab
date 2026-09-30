@@ -473,7 +473,33 @@ int main(int argc, char** argv) {
             if (!parseMove(argv[i], m) || !s.legalMove(m)) { printf("illegal move %s\n", argv[i]); return 1; }
             s.play(m);
         }
-        auto r = parallelSolve(s, secs, threads);
+        // env PROGRESS=<file>: append every solved root move ("<move> <win|draw|loss> <nodes> <sec>")
+        // and, if the file exists, skip the moves already recorded there (resume).
+        std::vector<std::pair<Move, int>> prev;
+        FILE* prog = nullptr;
+        if (const char* pf = getenv("PROGRESS")) {
+            std::ifstream in(pf);
+            std::string ms, vs;
+            std::string line;
+            while (std::getline(in, line)) {
+                std::istringstream ls(line);
+                Move m;
+                if (ls >> ms >> vs && parseMove(ms, m)) prev.push_back({m, vs == "win" ? 1 : vs == "loss" ? -1 : 0});
+            }
+            if (!prev.empty()) printf("resuming: %zu root moves already solved\n", prev.size());
+            prog = fopen(pf, "a");
+        }
+        auto t0 = std::chrono::steady_clock::now();
+        size_t done = prev.size();
+        auto r = parallelSolve(s, secs, threads, 22, prev, [&](Move m, int v, uint64_t nodes, double sec) {
+            done++;
+            const char* vs = v > 0 ? "win" : v < 0 ? "loss" : "draw";
+            if (prog) { fprintf(prog, "%s %s %llu %.1f\n", moveStr(m).c_str(), vs, (unsigned long long)nodes, sec); fflush(prog); }
+            double el = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+            printf("[%6.0fs] %4zu solved  %-22s %-4s %6.1fs %12llu nodes\n", el, done, moveStr(m).c_str(), vs, sec, (unsigned long long)nodes);
+            fflush(stdout);
+        });
+        if (prog) fclose(prog);
         int known = 0;
         for (auto& pm : r.perMove) known += pm.second != -9;
         printf("ply %d stm %d: value %s  (%d/%zu root moves solved, %llu nodes, %.1fs)\n", (int)s.ply, (int)s.stm,
