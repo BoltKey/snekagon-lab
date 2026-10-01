@@ -213,6 +213,7 @@ Other machines on the same network join with `snek worker <ip>:8090 <threads>` (
 | `src/solver.hpp` | exact solver, parallel solve |
 | `src/mcts.hpp` | v1 MCTS engine (kept for comparison) |
 | `src/main.cpp` | CLI + UI protocol |
+| `readable/` | the same engine refactored for reading (identical results), with a reading guide: [readable/README.md](readable/README.md) |
 | `ref/` | independent Python reference implementation + cross-check |
 | `tools/fit_eval.py` | evaluation fitting |
 | `data/` | solver-labelled positions (`labels_v*.csv`), weight files |
