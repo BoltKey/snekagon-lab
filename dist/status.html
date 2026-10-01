@@ -1,0 +1,166 @@
+<!doctype html><html lang="cs"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Snekagon – distribuovaný výpočet</title>
+<style>
+  body{font:14px system-ui,sans-serif;margin:16px;max-width:980px;background:#f4f1ea;color:#2b2620}
+  table{border-collapse:collapse;width:100%;margin:8px 0}
+  td,th{border-bottom:1px solid #d9d0c2;padding:4px;text-align:left;vertical-align:top}
+  .bar{height:14px;background:#e8e2d6;border-radius:7px;overflow:hidden}.bar div{height:100%;background:#2e7d32}
+  .muted{color:#7a7064}.bad{color:#c62828;font-weight:600}a{color:#1e5bd8}
+  .mv{font-family:ui-monospace,monospace;border-bottom:1px dotted #7a7064;cursor:help;white-space:nowrap}
+  .mv:hover{background:#ffe082}
+  #pop{position:fixed;display:none;background:#fffdf8;border:1px solid #d9d0c2;border-radius:10px;padding:8px;
+       box-shadow:0 4px 18px #0003;pointer-events:none;z-index:10}
+  #pop .cap{font:12px ui-monospace,monospace;max-width:260px;margin-top:4px;color:#2b2620}
+  @media (max-width:760px){ body{margin:10px} table{display:block;overflow-x:auto} }
+</style></head><body>
+<h2>Snekagon – exaktní řešení otevření doprostřed</h2>
+<div id="c">…</div>
+<h3>Tabulka zahájení</h3>
+<div id="tbl" class="muted">načítám…</div>
+<p class="muted">Najetím myší na zápis tahu se zobrazí pozice. ·
+  <a href="events">deník událostí</a> · <a href="state">stav (JSON)</a></p>
+<div id="pop"><svg id="popsvg" width="260" height="236"></svg><div class="cap" id="popcap"></div></div>
+<script>
+// ---- position rendering: move notation "<piece>:<cell>,<cell>,..." (cell = (r+5)*11 + (q+5)) ----
+const SZ = 12.5, S3 = Math.sqrt(3);
+const COL = ['#c62828', '#1e5bd8'];  // move 0 (the 1-hex) is red, then alternating
+function hexPts(x, y, s) {
+  return [...Array(6)].map((_, k) => { const a = Math.PI / 180 * (60 * k - 30);
+    return (x + s * Math.cos(a)).toFixed(1) + ',' + (y + s * Math.sin(a)).toFixed(1); }).join(' ');
+}
+function renderPosition(moves) {
+  const owner = {}, last = new Set();
+  moves.forEach((m, k) => {
+    if (m === 'pass' || !m.includes(':')) return;
+    for (const c of m.split(':')[1].split(',')) { owner[+c] = k % 2; if (k === moves.length - 1) last.add(+c); }
+  });
+  let s = `<polygon points="${hexPts(130, 118, 116)}" transform="rotate(30 130 118)" fill="#6b4a2f"/>`;
+  for (let i = 0; i < 121; i++) {
+    const q = i % 11 - 5, r = Math.floor(i / 11) - 5;
+    if (Math.abs(q + r) > 5) continue;
+    const x = 130 + SZ * S3 * (q + r / 2), y = 118 + SZ * 1.5 * r;
+    const fill = owner[i] === undefined ? '#7d5a3c' : COL[owner[i]];
+    const stroke = last.has(i) ? '#fff' : '#4a321f';
+    s += `<polygon points="${hexPts(x, y, SZ - 0.8)}" fill="${fill}" stroke="${stroke}" stroke-width="${last.has(i) ? 2 : 1}"/>`;
+  }
+  document.getElementById('popsvg').innerHTML = s;
+  document.getElementById('popcap').innerHTML = moves.map((m, k) =>
+    `<span style="color:${COL[k % 2]}">${k}. ${m}</span>`).join(' ');
+}
+const pop = document.getElementById('pop');
+document.addEventListener('mouseover', e => {
+  const el = e.target.closest('.mv');
+  if (!el) return;
+  renderPosition(el.dataset.moves.split(' '));
+  pop.style.display = 'block';
+});
+document.addEventListener('mousemove', e => {
+  if (pop.style.display !== 'block') return;
+  const w = 280, h = 300;
+  let x = e.clientX + 16, y = e.clientY + 16;
+  if (x + w > innerWidth) x = e.clientX - w - 8;
+  if (y + h > innerHeight) y = Math.max(4, innerHeight - h - 4);
+  pop.style.left = x + 'px'; pop.style.top = y + 'px';
+});
+document.addEventListener('mouseout', e => { if (e.target.closest('.mv')) pop.style.display = 'none'; });
+
+// a move shown as hoverable notation; `line` = all moves up to and including it
+const mv = (label, line) => `<span class="mv" data-moves="${line.join(' ')}">${label}</span>`;
+
+async function tick() {
+  const s = await (await fetch('status')).json();
+  const base = s.base.split(' ');
+  const n = s.entries, p = s.counts.proven || 0;
+  const eta = s.eta_hours ? (s.eta_hours > 48 ? (s.eta_hours / 24).toFixed(1) + ' dní' : s.eta_hours.toFixed(1) + ' h') : 'zatím nelze odhadnout';
+  let h = `<p>Dokazuje se: po ${mv(s.base, base)} (na tahu červený) vyhrává modrý.<br>
+  Vyvráceno <b>${p}</b> z ${n} odpovědí červeného${s.rate_per_hour ? ` – tempo ${s.rate_per_hour.toFixed(1)} za hodinu` : ''}.</p>
+  <div class="bar"><div style="width:${(100 * p / n).toFixed(2)}%"></div></div>
+  <p class="muted">Odhad do konce: ${eta}. Vyřešeno úloh: ${s.units_done}. Vláken: ${s.threads}.
+  Připraveno (seřazení kandidátů alfa-betou): ${s.ranked_ahead === undefined ? '?' : s.ranked_ahead}.</p>`;
+  if (s.holds && s.holds.length)
+    h += `<p class="bad">Odpovědi červeného bez nalezené výhry modrého: ${s.holds.map(r => mv(r, base.concat([r]))).join(', ')}</p>`;
+  h += '<h3>Workery</h3><table><tr><th>jméno</th><th>IP</th><th>vlákna</th><th>úloh</th><th>s/úlohu</th><th>připojen</th></tr>' +
+    s.workers.map(w => `<tr><td>${w.name}</td><td>${w.ip}</td><td>${w.threads}</td><td>${w.done}</td><td>${w.avg ? w.avg.toFixed(1) : ''}</td><td>${w.minutes.toFixed(0)} min</td></tr>`).join('') + '</table>';
+  h += '<h3>Právě se řeší</h3><table><tr><th>odpověď červeného</th><th>kandidát modrého</th><th>průběh</th><th>neúspěšní kandidáti (✗ vyvracející tah červeného)</th></tr>' +
+    s.active.map(a => {
+      const l2 = base.concat([a.r2]);
+      const note = (a.revisit ? ' – opakovaně bez limitu' : '') + (a.phase == 2 && !a.revisit ? ' – dořešení těžkých úloh' : '');
+      const failed = (a.failed || []).map(f => mv(f[0], l2.concat([f[0]])) + ' ✗ ' + mv(f[1], l2.concat([f[0], f[1]]))).join('<br>');
+      return `<tr><td>${mv(a.r2, l2)}</td><td>${mv(a.cand, l2.concat([a.cand]))} <span class="muted">(${a.ci + 1}.${note})</span></td>
+        <td>${a.done}/${a.total}${a.hard ? ' <span class="muted">(' + a.hard + ' těžkých)</span>' : ''}</td>
+        <td class="muted">${failed}${a.suspects ? '<br>podezřelí: ' + a.suspects : ''}</td></tr>`;
+    }).join('') + '</table>';
+  h += '<h3>Poslední vyvrácené</h3><table>' + s.recent.slice().reverse().map(r =>
+    `<tr><td>${mv(r[0], base.concat([r[0]]))}</td><td>→ ${r[1] ? mv(r[1], base.concat([r[0], r[1]])) : ''}</td>
+     <td class="muted">${r[2] ? r[2] + ' neúspěšných kandidátů' : ''}</td></tr>`).join('') + '</table>';
+  document.getElementById('c').innerHTML = h;
+}
+tick(); setInterval(tick, 10000);
+
+// ---- opening table: winning blue reply per red reply + how hard it was to find ----
+let tbl = null, sortKey = 'tricky', sortDir = -1, filter = 'all';
+const COLS = [
+  ['r2', 'odpověď červeného'], ['by', 'vítězná odpověď modrého'], ['rank', 'pořadí v alfa-betě'],
+  ['tricky', 'neúspěšní kandidáti'], ['hours', 'výpočet'], ['refuted', 'vyvrácení kandidáti (✗ tah červeného)'],
+];
+function rowVal(r, k) {
+  if (k === 'tricky') return r.failed + r.suspects + (r.status === 'holds' ? 1000 : 0);
+  if (k === 'rank') return r.win_rank === null || r.win_rank === undefined ? 999 : (r.win_rank < 0 ? 998 : r.win_rank);
+  if (k === 'hours') return r.hours;
+  if (k === 'r2') return r.r2;
+  if (k === 'by') return r.by || '';
+  if (k === 'refuted') return r.refuted.length;
+  return 0;
+}
+async function loadTable() {
+  tbl = await (await fetch('table')).json();
+  drawTable();
+}
+function drawTable() {
+  if (!tbl) return;
+  const base = tbl.base.split(' ');
+  let rows = tbl.rows.filter(r => filter === 'all' || r.status === filter);
+  rows.sort((a, b) => {
+    const x = rowVal(a, sortKey), y = rowVal(b, sortKey);
+    return (x < y ? -1 : x > y ? 1 : 0) * sortDir;
+  });
+  const cnt = s => tbl.rows.filter(r => r.status === s).length;
+  let h = `<p class="muted">Řazení kliknutím na záhlaví. „Pořadí v alfa-betě“ = kolikátý kandidát podle enginu vyhrál
+    (1 = engine ho navrhl hned; vysoké číslo = vítězný tah je těžké najít). „Neúspěšní kandidáti“ = kolik slibně vypadajících
+    odpovědí modrého tah červeného vyvrátil – nejzáludnější tahy červeného proti člověku.</p>
+    <p>Zobrazit: ${['all', 'proven', 'active', 'holds'].map(f => `<label><input type="radio" name="flt" value="${f}" ${f === filter ? 'checked' : ''}>
+      ${{all: 'vše', proven: 'vyvrácené', active: 'rozpracované', holds: 'nevyvrácené'}[f]} (${f === 'all' ? tbl.rows.length : cnt(f)})</label>`).join(' ')}
+    · <a href="#" id="csv">stáhnout CSV</a> · <a href="#" id="reload">obnovit</a></p>
+    <table><tr>${COLS.map(([k, t]) => `<th style="cursor:pointer" data-k="${k}">${t}${k === sortKey ? (sortDir < 0 ? ' ▼' : ' ▲') : ''}</th>`).join('')}</tr>`;
+  for (const r of rows.slice(0, 400)) {
+    const l2 = base.concat([r.r2]);
+    const by = r.by ? mv(r.by, l2.concat([r.by])) : (r.status === 'active' ? `<span class="muted">zkouší se ${mv(r.cand, l2.concat([r.cand]))}</span>` : (r.status === 'holds' ? '<span class="bad">nenalezena</span>' : ''));
+    const rank = r.win_rank === null || r.win_rank === undefined ? '' : (r.win_rank < 0 ? 'až při opakování' : (r.win_rank + 1) + '.');
+    const ref = r.refuted.map(f => mv(f[0], l2.concat([f[0]])) + ' ✗ ' + mv(f[1], l2.concat(f))).join('<br>');
+    h += `<tr><td>${mv(r.r2, l2)}</td><td>${by}</td><td>${rank}</td>
+      <td>${r.failed}${r.suspects ? ' <span class="muted">+' + r.suspects + ' podezřelí</span>' : ''}</td>
+      <td class="muted">${r.hours.toFixed(1)} h · ${r.units} úloh</td><td class="muted">${ref}</td></tr>`;
+  }
+  h += '</table>' + (rows.length > 400 ? `<p class="muted">… a dalších ${rows.length - 400}</p>` : '');
+  const el = document.getElementById('tbl');
+  el.innerHTML = h;
+  el.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
+    const k = th.dataset.k;
+    if (k === sortKey) sortDir = -sortDir; else { sortKey = k; sortDir = (k === 'r2' || k === 'by') ? 1 : -1; }
+    drawTable();
+  });
+  el.querySelectorAll('input[name=flt]').forEach(i => i.onchange = () => { filter = i.value; drawTable(); });
+  document.getElementById('reload').onclick = e => { e.preventDefault(); loadTable(); };
+  document.getElementById('csv').onclick = e => {
+    e.preventDefault();
+    const lines = ['red_reply,status,blue_winning_reply,win_rank,failed_candidates,suspects,compute_hours,units,refutations'];
+    for (const r of tbl.rows) lines.push([r.r2, r.status, r.by || '', r.win_rank === null || r.win_rank === undefined ? '' : r.win_rank + 1,
+      r.failed, r.suspects, r.hours.toFixed(2), r.units, r.refuted.map(f => f[0] + '>' + f[1]).join(' ')].map(x => `"${x}"`).join(','));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([lines.join('\n')], {type: 'text/csv'}));
+    a.download = 'snekagon-opening-table.csv';
+    a.click();
+  };
+}
+loadTable(); setInterval(loadTable, 60000);
+</script></body></html>

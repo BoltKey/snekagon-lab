@@ -141,9 +141,17 @@ def new_state():
 def migrate(st):
     """Version-1 state: add the new fields and rebuild killers/failures from results.log."""
     old_fail = {}
+    spent = {}
     if os.path.exists(RESULTS):
         for line in open(RESULTS):
             p = line.split()
+            if len(p) >= 4:
+                try:
+                    k = int(p[0].split('.')[0])
+                    u, sec = spent.get(k, (0, 0.0))
+                    spent[k] = (u + 1, sec + float(p[3]))
+                except ValueError:
+                    pass
             if len(p) < 2 or p[1] not in ('0', '-1'):
                 continue
             ids = p[0].split('.')
@@ -152,6 +160,10 @@ def migrate(st):
     for ei, e in enumerate(st['entries']):
         for k, v in DEFAULTS.items():
             e.setdefault(k, json.loads(json.dumps(v)))
+        if ei in spent:
+            e['units'], e['secs'] = spent[ei]
+        if e['status'] == 'proven' and 'win_rank' not in e and e['cands'] and e.get('by') in e['cands']:
+            e['win_rank'] = e['cands'].index(e['by'])
         if e['cands'] is None:
             continue
         for ci, ri, v in old_fail.get(ei, []):
@@ -230,6 +242,7 @@ def setup_candidate(ei):
         if v == -1:  # red to move loses -> proven by an earlier verification job
             e['status'] = 'proven'
             e['by'] = b3
+            e['win_rank'] = e['ci']
             e['proven_at'] = time.time()
             e['r4'] = None
             log('red reply %s refuted by %s (earlier verification)' % (e['r2'], b3))
@@ -311,6 +324,7 @@ def check_progress(ei):
     if len(e['res']) == len(e['r4']):
         e['status'] = 'proven'
         e['by'] = e['cands'][e['ci']]
+        e['win_rank'] = -1 if e['revisit'] else e['ci']  # position in the candidate ranking
         e['proven_at'] = time.time()
         e['r4'] = None
         e['res'] = {}
@@ -336,6 +350,8 @@ def on_result(uid, value, nodes, sec, worker):
         return  # result of the previous protocol version
     ei, gen, ri, phase = map(int, ids)
     e = state['entries'][ei]
+    e['units'] = e.get('units', 0) + 1  # compute spent on this red reply (incl. abandoned candidates)
+    e['secs'] = e.get('secs', 0.0) + float(sec)
     if e['status'] != 'active' or e['gen'] != gen:
         return  # stale result of an abandoned candidate
     if value == 'bad':
@@ -477,6 +493,22 @@ def status():
                 'recent': [(e['r2'], e.get('by'), len(e['failed'])) for e in proven[-12:]]}
 
 
+def table():
+    """Per red reply: winning blue reply and how hard it was to find."""
+    with lock:
+        out = []
+        for e in state['entries']:
+            if e['status'] == 'todo':
+                continue
+            out.append({'r2': e['r2'], 'status': e['status'], 'by': e.get('by'),
+                        'cand': e['cands'][e['ci']] if e['status'] == 'active' else None,
+                        'failed': len(e['failed']), 'suspects': len(e['suspects']),
+                        'win_rank': e.get('win_rank'), 'units': e.get('units', 0),
+                        'hours': e.get('secs', 0.0) / 3600.0, 'refuted': [[f[0], f[1]] for f in e['failed']][-6:],
+                        'proven_at': e.get('proven_at')})
+        return {'base': ' '.join(BASE), 'rows': out}
+
+
 PAGE = '''<!doctype html><html lang="cs"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Snekagon – distribuovaný výpočet</title>
 <style>body{font:14px system-ui,sans-serif;margin:16px;max-width:980px;background:#f4f1ea;color:#2b2620}
@@ -516,6 +548,8 @@ class StatusHandler(http.server.BaseHTTPRequestHandler):
         elif self.path.startswith('/state'):
             with lock:
                 body, ctype = json.dumps(state).encode(), 'application/json'
+        elif self.path.startswith('/table'):
+            body, ctype = json.dumps(table()).encode(), 'application/json'
         elif self.path.startswith('/events'):
             try:
                 lines = open(EVENTS).read().splitlines()[-400:]
@@ -523,7 +557,11 @@ class StatusHandler(http.server.BaseHTTPRequestHandler):
                 lines = []
             body, ctype = '\n'.join(lines).encode(), 'text/plain; charset=utf-8'
         elif self.path == '/' or self.path.startswith('/index'):
-            body, ctype = PAGE.encode(), 'text/html; charset=utf-8'
+            try:  # read on every request: the page can be updated without restarting the computation
+                body = open(os.path.join(HERE, 'status.html'), 'rb').read()
+            except OSError:
+                body = PAGE.encode()
+            ctype = 'text/html; charset=utf-8'
         else:
             self.send_response(404)
             self.end_headers()
