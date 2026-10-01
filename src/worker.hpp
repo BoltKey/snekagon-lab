@@ -5,7 +5,8 @@
 //   worker -> coordinator:  hello <name> <threads>
 //                           get <n>                      (ask for up to n units)
 //                           result <id> <value> <nodes> <seconds>
-//   coordinator -> worker:  unit <id> <move> <move> ...  (0..n of them, then)
+//   coordinator -> worker:  unit <id> [<node budget>] <move> <move> ...  (0..n of them, then)
+//                           (value -9 is returned when the node budget runs out)
 //                           end
 // A worker that loses the connection reconnects; the coordinator re-queues its units.
 #pragma once
@@ -114,13 +115,21 @@ inline int runWorker(const std::string& hostport, int threads, const std::string
                 std::istringstream ms(u.second);
                 std::string tok;
                 bool ok = true;
-                while (ms >> tok) { Move m; if (!parseMove(tok, m) || !s.legalMove(m)) { ok = false; break; } s.play(m); }
+                uint64_t limit = 0;  // node budget (0 = unlimited); a leading bare number is the budget
+                bool first = true;
+                while (ms >> tok) {
+                    if (first && tok.find(':') == std::string::npos && tok != "pass") { limit = std::strtoull(tok.c_str(), nullptr, 10); first = false; continue; }
+                    first = false;
+                    Move m;
+                    if (!parseMove(tok, m) || !s.legalMove(m)) { ok = false; break; }
+                    s.play(m);
+                }
                 char line[256];
                 if (!ok) {
                     snprintf(line, sizeof line, "result %s bad 0 0", u.first.c_str());
                 } else {
                     auto ts = std::chrono::steady_clock::now();
-                    int v = S.solve(s);
+                    int v = S.solve(s, 0, limit ? limit : UINT64_MAX);  // -9 = budget exceeded
                     double sec = std::chrono::duration<double>(std::chrono::steady_clock::now() - ts).count();
                     snprintf(line, sizeof line, "result %s %d %llu %.2f", u.first.c_str(), v, (unsigned long long)S.nodes, sec);
                     solvedCount++;

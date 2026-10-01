@@ -142,8 +142,19 @@ work.
 ## Distributed solve of the centre opening (`dist/`)
 
 Proves (or refutes) that after `1:60 4B:16,27,28,39` blue wins: for each of red's 1589 replies the
-coordinator tries blue candidates (learned-eval order) and sends every red answer as a unit (position
-after 5 moves) to the workers. A unit that does not come back as a blue win discards the candidate.
+coordinator tries blue candidates and sends every red answer as a unit (position after 5 moves) to the
+workers. A unit that does not come back as a blue win discards the candidate.
+
+- blue's candidates are ranked by a 10 s alpha-beta search (precomputed in the background); the 1-ply
+  evaluation alone proposed near-identical moves that all failed against the same red answer,
+- red answers that refuted earlier candidates ("killers") are tried first for the next one,
+- units carry a node budget (`PROBE_NODES`, default 150 M); over-budget units are solved later without
+  budget, an over-budget killer marks the candidate suspect (retried only if nothing else works).
+  A candidate is accepted only when every unit is an exact blue win, so budgets never affect soundness.
+
+Updating a running installation: `bash dist/stop.sh`, unzip the new version over the old folder
+(`results/dist/` is kept), `bash dist/build.sh`, `bash dist/start.sh` - old state is migrated (killers are
+rebuilt from `results.log`).
 
 On a Linux box (runs nonstop, coordinator + local worker):
 
@@ -154,7 +165,7 @@ bash dist/stop.sh           # stop (state in results/dist/ is kept, start.sh res
 ```
 
 Other machines on the same network join with `snek worker <ip>:8090 <threads>` (Windows:
-`snek.exe worker …`). Status page: `http://<ip>:8091/`. Earlier verification results from
+`snek.exe worker …`). Status page: `http://<ip>:8091/` (also `/events`, `/state`). Earlier verification results from
 `results/jobs/` are reused automatically.
 
 ## Tools
