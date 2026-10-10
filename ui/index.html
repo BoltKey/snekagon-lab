@@ -253,7 +253,8 @@ function render() {
     `<span data-k="${k}" class="${k === cur - 1 ? 'cur' : k >= cur ? 'future' : ''}" style="color:var(--p${k % 2 === 0 ? 0 : 1})">${k}. ${m}</span>`).join(' ');
   h.querySelectorAll('span').forEach(sp => sp.onclick = () => gotoPly(+sp.dataset.k + 1));
   const curEl = h.querySelector('.cur');
-  if (curEl) curEl.scrollIntoView({ block: 'nearest' });
+  // keep the current move visible inside the history box only (scrollIntoView would move the whole page)
+  if (curEl) h.scrollTop = Math.max(0, curEl.offsetTop - h.offsetTop - h.clientHeight / 2);
   document.getElementById('bBack').disabled = busy || cur === 0;
   document.getElementById('bFirst').disabled = busy || cur === 0;
   document.getElementById('bFwd').disabled = busy || cur >= game.length;
