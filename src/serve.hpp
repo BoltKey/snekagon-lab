@@ -1,6 +1,7 @@
 // The `snek serve` line protocol: one command in, one JSON line out. Shared by the CLI (`snek serve`,
 // driven by ui/server.js) and the WebAssembly build (src/web.cpp, driven by ui/snek-worker.js).
 #pragma once
+#include <functional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -129,6 +130,10 @@ class ServeSession {
 public:
     explicit ServeSession(int threads) : threads(threads), solver(22), s(Pos::start()) {}
 
+    // If set, `solve` reports each root move it proves as a {"progress":true,...} JSON line before its
+    // answer (for the UI's progress bar). Unset by default: one answer line per command.
+    std::function<void(const std::string&)> progress;
+
     // The answer to one command line, or "" for "quit".
     std::string handle(std::string line) {
         if (!line.empty() && line.back() == '\r') line.pop_back();
@@ -181,7 +186,22 @@ public:
             in >> sec;
             if (s.over()) { out = "{\"ok\":false,\"error\":\"game over\"}"; }
             else {
-                auto r = parallelSolve(s, sec, threads, 21);
+                size_t total = uniqueRootMoves(s).size();
+                int solved = 0, wins = 0, draws = 0, losses = 0;
+                auto t0 = std::chrono::steady_clock::now();
+                auto report = [&](Move m, int v, uint64_t, double) {
+                    solved++;
+                    (v > 0 ? wins : v < 0 ? losses : draws)++;
+                    std::ostringstream p;
+                    p << "{\"progress\":true,\"solved\":" << solved << ",\"total\":" << total << ",\"wins\":" << wins
+                      << ",\"draws\":" << draws << ",\"losses\":" << losses << ",\"seconds\":"
+                      << std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count()
+                      << ",\"m\":" << moveJson(m) << ",\"v\":" << v << "}";
+                    progress(p.str());
+                };
+                std::function<void(Move, int, uint64_t, double)> onResult;
+                if (progress) onResult = report;
+                auto r = parallelSolve(s, sec, threads, 21, {}, onResult);
                 std::ostringstream o;
                 o << "{\"ok\":true,\"stm\":" << (int)s.stm << ",\"value\":" << r.value << ",\"nodes\":" << r.nodes
                   << ",\"seconds\":" << r.seconds << ",\"moves\":[";

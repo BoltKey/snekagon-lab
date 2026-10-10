@@ -20,7 +20,9 @@ UI: pick a piece (buttons or keys `1`–`8`), hover a cell, and cycle through al
 piece covering the cell with the mouse wheel / `R` / right click; click to play.
 - **Engine move** – the engine plays (engine selectable: *alpha-beta* = current engine, *MCTS* = first version).
 - **Analyze** – ranked moves with win probability for the side to move (hover = preview, click = play).
-- **Solve** – exact parallel solve of the current position (win/draw/loss per move) within a time limit.
+- **Solve** – exact parallel solve of the current position (win/draw/loss per move) within a time limit, with a
+  progress bar of the solved moves. Offered once few pieces are left (from move 7 in the browser, move 6 with the
+  server): earlier positions can take minutes.
 - **live evaluation** – every shown position (also while browsing the game) gets a 1 s analysis, cached per
   position, so going back and forth is instant; "Analyze" with a longer time replaces the cached one.
 - game navigation: ⏮ ◀ ▶ ⏭, arrow keys, Home/End, or click a move in the history. The whole game is kept;

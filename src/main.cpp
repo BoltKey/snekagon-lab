@@ -124,6 +124,8 @@ static std::string dataRow(int g, const Pos& s, int v, int head) {
 
 static void serve(int threads) {
     ServeSession session(threads);
+    // SERVE_PROGRESS=1 (set by ui/server.js): solve also prints its {"progress":...} lines
+    if (getenv("SERVE_PROGRESS")) session.progress = [](const std::string& p) { std::cout << p << "\n" << std::flush; };
     std::string line;
     while (std::getline(std::cin, line)) {
         std::string out = session.handle(line);

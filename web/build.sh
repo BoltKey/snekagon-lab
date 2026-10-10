@@ -10,7 +10,7 @@ mkdir -p "$out"
 em++ -O3 -std=c++20 src/web.cpp -o "$out/snek.js" \
   -sMODULARIZE=1 -sEXPORT_NAME=SnekEngine -sENVIRONMENT=worker \
   -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=128MB -sSTACK_SIZE=8MB \
-  -sEXPORTED_FUNCTIONS=_snek_cmd,_main -sEXPORTED_RUNTIME_METHODS=cwrap
+  -sEXPORTED_FUNCTIONS=_snek_cmd,_main -sEXPORTED_RUNTIME_METHODS=cwrap '-sDEFAULT_LIBRARY_FUNCS_TO_INCLUDE=$UTF8ToString'
 sed 's/<html lang="en">/<html lang="en" data-static>/' ui/index.html > "$out/index.html"
 grep -q 'data-static' "$out/index.html"
 cp ui/snek-worker.js "$out/"

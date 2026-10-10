@@ -140,7 +140,10 @@ async function pickBackend() {
     }
   } catch (e) {}
   worker = new Worker('snek-worker.js');
-  worker.onmessage = e => { const res = pending.get(e.data.id); pending.delete(e.data.id); res(JSON.parse(e.data.out)); };
+  worker.onmessage = e => {
+    if (e.data.progress) { solveProgress(JSON.parse(e.data.progress)); return; }  // sent while a solve runs
+    const res = pending.get(e.data.id); pending.delete(e.data.id); res(JSON.parse(e.data.out));
+  };
   document.getElementById('jobCard').hidden = true;
   document.getElementById('backend').textContent = 'engine: in your browser (1 core)';
 }
@@ -239,6 +242,11 @@ function render() {
     tray.appendChild(hand);
   }
   document.getElementById('bPass').disabled = busy || st.over || st.legal.length > 0;
+  const bs = document.getElementById('bSolve');
+  bs.disabled = busy || !solveAllowed();
+  bs.textContent = st.over || solveAllowed() ? 'Solve' : `Solve (from move ${15 - solveMaxPieces()})`;
+  bs.title = st.over || solveAllowed() ? 'Exact solution (win/draw/loss) within the time limit'
+    : `Available once at most ${solveMaxPieces()} pieces are left: earlier positions can take minutes to solve`;
   // history
   const h = document.getElementById('hist');
   const cur = st.history.length;
@@ -424,11 +432,38 @@ document.getElementById('bLast').onclick = () => gotoPly(game.length);
 document.getElementById('bPass').onclick = () => playMove('pass');
 document.getElementById('bGo').onclick = engineMove;
 document.getElementById('bAn').onclick = analyzeNow;
+// Exact solving is offered only once few pieces are left; with more, one position can take minutes
+// (measured on one core: from move 7 a few seconds at most, at move 6 up to about a minute).
+const solveMaxPieces = () => worker ? 8 : 9;  // in the browser: one core; behind the server: all cores
+const solveAllowed = () => st && !st.over && st.avail[0].length + st.avail[1].length <= solveMaxPieces();
+let solveRun = null;  // the running solve: {t0, limit, last progress line}
+function solveProgress(p) { if (solveRun) { solveRun.last = p; showSolveProgress(); } }
+function showSolveProgress() {
+  const { t0, limit, last } = solveRun;
+  const t = (performance.now() - t0) / 1000;
+  const done = last && last.total ? last.solved / last.total : 0;
+  document.getElementById('anl').innerHTML = `<div>Solving… ${t.toFixed(0)} s (limit ${limit} s)</div>
+    <div class="evalbar" style="background:#e8e2d6"><div style="width:${(done * 100).toFixed(1)}%;background:#8d6e00"></div></div>
+    <div class="evalbar" style="height:4px;background:#e8e2d6"><div style="width:${Math.min(100, t / limit * 100).toFixed(1)}%;background:var(--muted)"></div></div>
+    <div class="muted">${last ? `${last.solved} of ${last.total} moves solved: ${last.wins} win, ${last.draws} draw, ${last.losses} lose.` : 'No move solved yet.'}
+    The first winning move ends the search.</div>`;
+}
 document.getElementById('bSolve').onclick = async () => {
-  if (busy || !st || st.over) return;
+  if (busy || !solveAllowed()) return;
   setBusy(true);
-  document.getElementById('anl').textContent = 'Solving…';
-  const r = await cmd('solve ' + Math.max(10, +secs() * 3));
+  const limit = Math.max(10, +secs() * 3);
+  solveRun = { t0: performance.now(), limit, last: null };
+  showSolveProgress();
+  const tick = setInterval(async () => {
+    if (!worker) try {  // behind the server: ask for the latest progress line
+      const p = await (await fetch('progress')).json();
+      if (p.progress && solveRun) solveRun.last = p;
+    } catch (e) {}
+    if (solveRun) showSolveProgress();
+  }, 400);
+  const r = await cmd('solve ' + limit);
+  clearInterval(tick);
+  solveRun = null;
   setBusy(false);
   if (!r.ok) return;
   const color = r.stm === 0 ? 'red' : 'blue';

@@ -16,17 +16,19 @@ const jobDir = path.join(__dirname, '..', 'results', 'jobs');
 fs.mkdirSync(jobDir, { recursive: true });
 
 // ---- interactive engine (one command at a time) ----
-const engine = spawn(exe, ['serve', threads], { stdio: ['pipe', 'pipe', 'inherit'] });
+const engine = spawn(exe, ['serve', threads], { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, SERVE_PROGRESS: '1' } });
 engine.on('exit', (c) => { console.error('engine exited', c); process.exit(1); });
 
 let buf = '';
 const waiting = [];
+let progress = '{}';  // the running solve's latest {"progress":...} line, for GET /progress
 engine.stdout.on('data', (d) => {
   buf += d.toString();
   let i;
   while ((i = buf.indexOf('\n')) >= 0) {
     const line = buf.slice(0, i);
     buf = buf.slice(i + 1);
+    if (line.startsWith('{"progress"')) { progress = line; continue; }
     const w = waiting.shift();
     if (w) w(line);
   }
@@ -35,6 +37,7 @@ let chain = Promise.resolve();
 function ask(cmd) {
   const p = chain.then(() => new Promise((res) => {
     waiting.push(res);
+    if (cmd.startsWith('solve')) progress = '{}';
     engine.stdin.write(cmd.replace(/[\r\n]/g, ' ') + '\n');
   }));
   chain = p.catch(() => {});
@@ -121,6 +124,7 @@ http.createServer(async (req, res) => {
     if (job) job.proc.kill();
     return json(res, { ok: true });
   }
+  if (urlPath === '/progress') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(progress); return; }
   if (urlPath === '/job/status') return json(res, jobStatus(query.has('moves') ? query.get('moves') : undefined));
   const file = urlPath === '/' ? 'index.html' : urlPath.slice(1);
   const fp = path.join(__dirname, path.normalize(file).replace(/^(\.\.[\/\\])+/, ''));
