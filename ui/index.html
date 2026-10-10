@@ -32,9 +32,13 @@
   .hex.prev1 { fill: var(--p1soft); }
   .hex.hint { fill: #ffe082; }
   .lbl { font-size: 9px; fill: #fff8; pointer-events: none; text-anchor: middle; dominant-baseline: middle; }
-  .tray { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-  .tray button { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 52px; }
-  .tray svg { width: 44px; height: 30px; }
+  .tray { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+  .hand { display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; }
+  .hand .who { align-self: center; min-width: 84px; font-size: 12px; color: var(--muted); }
+  .hand .pc { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 48px; padding: 5px 7px; }
+  .hand.other .pc { border: 1px dashed var(--line); border-radius: 6px; font-size: 12px; color: var(--muted); }
+  .hand svg { display: block; }
+  @media (max-width: 600px) { .hand .who { flex-basis: 100%; } }
   .status { font-size: 15px; margin-bottom: 6px; }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
   .evalbar { height: 14px; border-radius: 7px; overflow: hidden; background: var(--p1); margin: 8px 0; position: relative; }
@@ -127,7 +131,8 @@ async function cmd(c) {
   return r.json();
 }
 async function pickBackend() {
-  try {
+  // web/build.sh marks the static build with data-static, so it never asks for a server
+  if (!document.documentElement.hasAttribute('data-static')) try {
     const r = await fetch('job/status');
     if (r.ok && (r.headers.get('content-type') || '').includes('json')) {
       document.getElementById('backend').textContent = 'engine: server';
@@ -210,24 +215,28 @@ function render() {
   }
   s += `<div class="muted">Longest snake: red ${st.longest[0]} (at most ${st.bounds[0][1]}), blue ${st.longest[1]} (at most ${st.bounds[1][1]})</div>`;
   document.getElementById('status').innerHTML = s;
-  // tray
+  // tray: the pieces left to the side to move (buttons) and to the opponent (shown only)
   const tray = document.getElementById('tray');
   tray.innerHTML = '';
-  if (!st.over) {
-    const legalPieces = new Set(st.legal.map(m => m.p));
-    for (const p of st.avail[st.stm]) {
-      const b = document.createElement('button');
-      b.innerHTML = miniPiece(p, st.stm) + `<span>${p}</span>`;
-      if (p === sel) b.classList.add('sel');
-      if (!legalPieces.has(p)) b.disabled = true;
-      b.onclick = () => { sel = p; updatePreview(); };
-      tray.appendChild(b);
+  const legalPieces = new Set(st.over ? [] : st.legal.map(m => m.p));
+  for (const pl of [st.stm, 1 - st.stm]) {
+    const mine = pl === st.stm && !st.over;
+    const hand = document.createElement('div');
+    hand.className = 'hand' + (mine ? '' : ' other');
+    hand.innerHTML = `<span class="who">${pl === 0 ? 'red' : 'blue'}${mine ? '' : ' has left'}</span>`;
+    if (!st.avail[pl].length) hand.innerHTML += '<span class="who">nothing</span>';
+    for (const p of st.avail[pl]) {
+      const b = document.createElement(mine ? 'button' : 'span');
+      b.className = 'pc';
+      b.innerHTML = miniPiece(p, pl) + `<span>${p}</span>`;
+      if (mine) {
+        if (p === sel) b.classList.add('sel');
+        if (!legalPieces.has(p)) b.disabled = true;
+        b.onclick = () => { sel = p; updatePreview(); };
+      }
+      hand.appendChild(b);
     }
-    const other = document.createElement('span');
-    other.className = 'muted';
-    other.style.alignSelf = 'center';
-    other.textContent = 'opponent has left: ' + st.avail[1 - st.stm].join(', ');
-    tray.appendChild(other);
+    tray.appendChild(hand);
   }
   document.getElementById('bPass').disabled = busy || st.over || st.legal.length > 0;
   // history
@@ -243,12 +252,27 @@ function render() {
   document.getElementById('bFwd').disabled = busy || cur >= game.length;
   document.getElementById('bLast').disabled = busy || cur >= game.length;
 }
+// A piece for the tray: turned the way it lies flattest, all pieces at the same hex size, and the
+// picture cut to the piece's own outline so nothing spills over.
+const TRAY_PX = 0.3;  // screen pixels per board unit
+function trayShape(p) {
+  let best = null, cells = SHAPES[p];
+  for (let k = 0; k < 6; k++) {
+    const pts = cells.map(([q, r]) => px(q, r));
+    const xs = pts.map(a => a[0]), ys = pts.map(a => a[1]);
+    const h = Math.max(...ys) - Math.min(...ys), w = Math.max(...xs) - Math.min(...xs);
+    if (!best || h < best.h - 1e-6 || (Math.abs(h - best.h) < 1e-6 && w < best.w)) best = { pts, h, w };
+    cells = cells.map(([q, r]) => [-r, q + r]);  // turn by 60 degrees
+  }
+  return best.pts;
+}
 function miniPiece(p, pl) {
-  const pts = SHAPES[p].map(([q, r]) => px(q, r));
+  const pts = trayShape(p), hw = SZ * S3 / 2, pad = 2;
   const xs = pts.map(a => a[0]), ys = pts.map(a => a[1]);
-  const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-  const sc = 0.28;
-  return `<svg viewBox="-22 -15 44 30">${pts.map(([x, y]) => `<polygon points="${hexPts((x - cx) * sc, (y - cy) * sc, SZ * sc - .5)}" fill="var(--p${pl})"/>`).join('')}</svg>`;
+  const x0 = Math.min(...xs) - hw - pad, y0 = Math.min(...ys) - SZ - pad;
+  const w = Math.max(...xs) + hw + pad - x0, h = Math.max(...ys) + SZ + pad - y0;
+  return `<svg viewBox="${x0.toFixed(1)} ${y0.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" width="${(w * TRAY_PX).toFixed(0)}" height="${(h * TRAY_PX).toFixed(0)}">` +
+    pts.map(([x, y]) => `<polygon points="${hexPts(x, y, SZ - 2)}" fill="var(--p${pl})"/>`).join('') + '</svg>';
 }
 
 // ---------- actions ----------
