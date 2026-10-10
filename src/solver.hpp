@@ -280,30 +280,33 @@ inline ParallelSolveResult parallelSolve(const Pos& root, double seconds, int th
     // SOLVER_SHARED=<log2 entries>: one transposition table shared by all threads
     int sharedLog2 = envInt("SOLVER_SHARED", 0);
     std::shared_ptr<LTT> shared = sharedLog2 ? std::make_shared<LTT>(sharedLog2 - 1) : nullptr;
-    for (int w = 0; w < threads; w++)
-        th.emplace_back([&] {
-            std::unique_ptr<Solver> SP(shared ? new Solver(shared) : new Solver(ttLog2));
-            Solver& S = *SP;
-            S.stop = &stop;
-            for (;;) {
-                size_t k = next++;
-                if (k >= idx.size() || stop) break;
-                size_t i = idx[k];
-                if (val[i] != -9) continue;  // known from a previous run
-                Pos c = root; c.play(mv[i]);
-                auto ts = std::chrono::steady_clock::now();
-                double left = seconds - std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-                if (left <= 0) break;
-                int v = S.solve(c, left);
-                nodes += S.nodes;
-                if (v == -9) continue;
-                std::lock_guard<std::mutex> lk(mu);
-                val[i] = -v;
-                if (-v == 1) stop = true;
-                if (onResult) onResult(mv[i], -v, S.nodes, std::chrono::duration<double>(std::chrono::steady_clock::now() - ts).count());
-            }
-        });
-    for (auto& t : th) t.join();
+    auto work = [&] {
+        std::unique_ptr<Solver> SP(shared ? new Solver(shared) : new Solver(ttLog2));
+        Solver& S = *SP;
+        S.stop = &stop;
+        for (;;) {
+            size_t k = next++;
+            if (k >= idx.size() || stop) break;
+            size_t i = idx[k];
+            if (val[i] != -9) continue;  // known from a previous run
+            Pos c = root; c.play(mv[i]);
+            auto ts = std::chrono::steady_clock::now();
+            double left = seconds - std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+            if (left <= 0) break;
+            int v = S.solve(c, left);
+            nodes += S.nodes;
+            if (v == -9) continue;
+            std::lock_guard<std::mutex> lk(mu);
+            val[i] = -v;
+            if (-v == 1) stop = true;
+            if (onResult) onResult(mv[i], -v, S.nodes, std::chrono::duration<double>(std::chrono::steady_clock::now() - ts).count());
+        }
+    };
+    if (threads == 1) work();  // inline, so it also runs where there are no threads (WebAssembly)
+    else {
+        for (int w = 0; w < threads; w++) th.emplace_back(work);
+        for (auto& t : th) t.join();
+    }
     int best = -2;
     bool allKnown = true;
     for (size_t i = 0; i < mv.size(); i++) {

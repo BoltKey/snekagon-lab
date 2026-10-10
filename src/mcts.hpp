@@ -139,9 +139,12 @@ inline std::vector<MoveStat> mctsAnalyze(const Pos& root, double seconds, int th
                                          std::atomic<bool>* stop = nullptr) {
     std::vector<std::unique_ptr<Mcts>> trees;
     for (int i = 0; i < threads; i++) trees.emplace_back(new Mcts(0x1234 + i * 7919 + (uint64_t)std::chrono::steady_clock::now().time_since_epoch().count()));
-    std::vector<std::thread> th;
-    for (int i = 0; i < threads; i++) th.emplace_back([&, i] { trees[i]->run(root, seconds, stop); });
-    for (auto& t : th) t.join();
+    if (threads == 1) trees[0]->run(root, seconds, stop);  // inline, so it also runs without threads (WebAssembly)
+    else {
+        std::vector<std::thread> th;
+        for (int i = 0; i < threads; i++) th.emplace_back([&, i] { trees[i]->run(root, seconds, stop); });
+        for (auto& t : th) t.join();
+    }
     std::map<int, MoveStat> agg;
     for (auto& tr : trees) {
         auto& nd = tr->nodes;

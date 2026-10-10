@@ -72,6 +72,7 @@
   <label title="Každou zobrazenou pozici (i při procházení partie) krátce analyzovat"><input type="checkbox" id="live" checked> živé hodnocení</label>
   <label><input type="checkbox" id="auto0"> engine hraje <b style="color:var(--p0)">červeného</b></label>
   <label><input type="checkbox" id="auto1" checked> engine hraje <b style="color:var(--p1)">modrého</b></label>
+  <span class="muted" id="backend"></span>
 </header>
 <main>
   <div class="card">
@@ -86,7 +87,7 @@
       <div class="evalbar"><div id="evalFill" style="width:50%"></div></div>
       <div id="anl" class="muted">Zatím bez analýzy.</div>
     </div>
-    <div class="card" style="margin-top:12px">
+    <div class="card" style="margin-top:12px" id="jobCard">
       <b>Exaktní ověření</b>
       <label class="muted" style="float:right" title="Jakmile se zahraje 4. tah, spustí se exaktní ověření pozice"><input type="checkbox" id="autoVerify" checked> po 4. tahu automaticky</label>
       <div id="jobInfo" class="muted" style="margin-top:4px">…</div>
@@ -116,9 +117,27 @@ const hexPts = (x, y, s = SZ) => [...Array(6)].map((_, k) => { const a = Math.PI
 let game = [];  // full move list of the game (the current position may be an earlier point of it)
 let st = null, sel = null, hoverCell = null, candIdx = 0, preview = null, busy = false, lastAnalysis = null;
 
+// The engine runs either behind ui/server.js (native, all cores, exact verification jobs) or, on a static
+// host such as GitHub Pages, in the browser as WebAssembly (snek-worker.js, one core); decided at startup.
+let worker = null, nextId = 0;
+const pending = new Map();
 async function cmd(c) {
-  const r = await fetch('/cmd', { method: 'POST', body: c });
+  if (worker) return new Promise(res => { const id = ++nextId; pending.set(id, res); worker.postMessage({ id, cmd: c }); });
+  const r = await fetch('cmd', { method: 'POST', body: c });
   return r.json();
+}
+async function pickBackend() {
+  try {
+    const r = await fetch('job/status');
+    if (r.ok && (r.headers.get('content-type') || '').includes('json')) {
+      document.getElementById('backend').textContent = 'engine: server';
+      return;
+    }
+  } catch (e) {}
+  worker = new Worker('snek-worker.js');
+  worker.onmessage = e => { const res = pending.get(e.data.id); pending.delete(e.data.id); res(JSON.parse(e.data.out)); };
+  document.getElementById('jobCard').hidden = true;
+  document.getElementById('backend').textContent = 'engine: v prohlížeči (1 jádro)';
 }
 function setBusy(b) { busy = b; document.querySelectorAll('header button').forEach(x => x.disabled = b); document.body.style.cursor = b ? 'progress' : ''; if (!b && st) render(); }
 
@@ -426,11 +445,11 @@ document.addEventListener('keydown', e => {
 // ---------- exact verification jobs (separate solver process on the server) ----------
 let jobPoll = null, runningMoves = null, shownJob = null;
 async function fetchJob(moves) {
-  const r = await fetch('/job/status' + (moves !== undefined ? '?moves=' + encodeURIComponent(moves) : ''));
+  const r = await fetch('job/status' + (moves !== undefined ? '?moves=' + encodeURIComponent(moves) : ''));
   return r.json();
 }
 async function startVerify(moves) {
-  const r = await (await fetch('/job/start', { method: 'POST', body: moves })).json();
+  const r = await (await fetch('job/start', { method: 'POST', body: moves })).json();
   if (!r.ok) { alert(r.error); return; }
   runningMoves = moves;
   pollJob();
@@ -446,11 +465,11 @@ function pollJob() {
   tick();
 }
 async function refreshJobCard() {
-  if (runningMoves !== null || !st) return;  // the running job stays on display
+  if (worker || runningMoves !== null || !st) return;  // the running job stays on display
   renderJob(await fetchJob(posKey()), true);
 }
 function maybeAutoVerify() {
-  if (document.getElementById('autoVerify').checked && st && !st.over && st.history.length === 4) startVerify(posKey());
+  if (!worker && document.getElementById('autoVerify').checked && st && !st.over && st.history.length === 4) startVerify(posKey());
 }
 const plural = (n, a, b, c) => n === 1 ? a : n >= 2 && n <= 4 ? b : c;
 function renderJob(j, forShown) {
@@ -507,7 +526,7 @@ function renderJob(j, forShown) {
   });
 }
 document.getElementById('bVerify').onclick = () => { if (st && !st.over) startVerify(posKey()); };
-document.getElementById('bJobStop').onclick = async () => { await fetch('/job/stop', { method: 'POST' }); runningMoves = null; setTimeout(refreshJobCard, 500); };
+document.getElementById('bJobStop').onclick = async () => { await fetch('job/stop', { method: 'POST' }); runningMoves = null; setTimeout(refreshJobCard, 500); };
 document.getElementById('bJobShow').onclick = async () => {
   if (!shownJob) return;
   const mv = shownJob.moves;
@@ -515,9 +534,12 @@ document.getElementById('bJobShow').onclick = async () => {
 };
 
 (async () => {
+  await pickBackend();
   // show a running verification (if any) right away
-  const cur = await fetchJob();
-  if (cur.running) { runningMoves = cur.moves; pollJob(); }
+  if (!worker) {
+    const cur = await fetchJob();
+    if (cur.running) { runningMoves = cur.moves; pollJob(); }
+  }
   await cmd('engine ' + document.getElementById('eng').value);
   // ?moves=1:60+4B:16,27,28,39+...  opens that position (the engine stays off for both colours)
   const pm = new URLSearchParams(location.search).get('moves');

@@ -34,6 +34,14 @@ piece covering the cell with the mouse wheel / `R` / right click; click to play.
 
 Server: `node ui/server.js <port> <engineThreads> <jobThreads>` (default job threads = cores − 4).
 
+## Browser version (no server, GitHub Pages)
+
+The same UI also runs as a static site: `src/web.cpp` compiles the engine to WebAssembly (`bash web/build.sh`,
+needs Emscripten; output in `web/site/`), `ui/snek-worker.js` runs it in a Web Worker, and `ui/index.html`
+switches to it whenever `ui/server.js` is not there. In the browser the engine thinks on a single core and the
+exact verification jobs are hidden. `.github/workflows/pages.yml` builds it and publishes it on GitHub Pages
+on every push to `main`. Both front ends share the protocol in `src/serve.hpp`.
+
 ## Rules as implemented: [RULES.md](RULES.md)
 
 ## Engine (v2)

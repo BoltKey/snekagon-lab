@@ -2,3 +2,14 @@ build/
 __pycache__/
 results/dist/
 snekagon*.zip
+video/.venv/
+video/media/
+video/audio_cache/
+video/voices/
+video/frames/
+video/samples/
+video/__pycache__/
+video/snekagon_ch1-7_*.mp4
+video/sfx/
+video/share/
+web/site/
