@@ -47,6 +47,9 @@ struct LTT {
 };
 
 inline int envInt(const char* name, int def) { const char* v = getenv(name); return v ? atoi(v) : def; }
+// SOLVER_RED_BONUS=b counts b extra cells for red at the end of the game (default 0 = the real rules).
+// With it, "blue still wins" means blue wins by more than b: used to find the exact margin of a line.
+inline const int RED_BONUS = envInt("SOLVER_RED_BONUS", 0);
 
 struct Solver {
     std::shared_ptr<LTT> tt;
@@ -84,7 +87,7 @@ struct Solver {
     }
 
     static int terminalValue(const Pos& s) {
-        int d = finalScore(s);
+        int d = finalScore(s) + RED_BONUS;
         int v = d > 0 ? 1 : d < 0 ? -1 : 0;
         return s.stm == 0 ? v : -v;
     }
@@ -121,6 +124,9 @@ struct Solver {
         int lbMe, ubMe, lbOp, ubOp;
         snakeBounds(s, s.stm, lbMe, ubMe);
         snakeBounds(s, s.stm ^ 1, lbOp, ubOp);
+        int bonus = s.stm == 0 ? RED_BONUS : -RED_BONUS;  // the side to move's share of SOLVER_RED_BONUS
+        lbMe += bonus;
+        ubMe += bonus;
         int blo = lbMe > ubOp ? 1 : lbMe >= ubOp ? 0 : -1;
         int bhi = ubMe < lbOp ? -1 : ubMe <= lbOp ? 0 : 1;
         lo = std::max(lo, blo);
