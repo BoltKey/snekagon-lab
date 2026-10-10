@@ -18,17 +18,17 @@ and forwards each request to its stdin, one JSON line back per command).
 
 UI: pick a piece (buttons or keys `1`–`8`), hover a cell, and cycle through all legal placements of that
 piece covering the cell with the mouse wheel / `R` / right click; click to play.
-- **Engine táhni** – engine move (engine selectable: *alfa-beta* = current engine, *MCTS* = first version).
-- **Analyzuj** – ranked moves with win probability for the side to move (hover = preview, click = play).
-- **Vyřešit** – exact parallel solve of the current position (win/draw/loss per move) within a time limit.
-- **živé hodnocení** – every shown position (also while browsing the game) gets a 1 s analysis, cached per
-  position, so going back and forth is instant; "Analyzuj" with a longer time replaces the cached one.
+- **Engine move** – the engine plays (engine selectable: *alpha-beta* = current engine, *MCTS* = first version).
+- **Analyze** – ranked moves with win probability for the side to move (hover = preview, click = play).
+- **Solve** – exact parallel solve of the current position (win/draw/loss per move) within a time limit.
+- **live evaluation** – every shown position (also while browsing the game) gets a 1 s analysis, cached per
+  position, so going back and forth is instant; "Analyze" with a longer time replaces the cached one.
 - game navigation: ⏮ ◀ ▶ ⏭, arrow keys, Home/End, or click a move in the history. The whole game is kept;
   playing a different move in an earlier position starts a new branch.
 - checkboxes let the engine play either side.
-- **Exaktní ověření** – exact solve of the shown position as a separate background process (the UI stays
+- **Exact verification** – exact solve of the shown position as a separate background process (the UI stays
   responsive): progress, ETA, verdict with what it implies for the last two moves, winning/drawing moves.
-  With "po 4. tahu automaticky" it starts by itself once the 4th move is played. Jobs are resumable and
+  With "automatically after move 4" it starts by itself once the 4th move is played. Jobs are resumable and
   cached in `results/jobs/` (`<id>.moves`, progress `<id>.log`, output `<id>.out`).
 - `?moves=1:60+4B:16,27,28,39+…` in the URL opens that position.
 

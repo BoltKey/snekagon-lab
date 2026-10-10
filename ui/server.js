@@ -85,7 +85,7 @@ function jobStatus(moves) {
 function startJob(moves) {
   moves = norm(moves);
   const id = jobId(moves);
-  if (job) return job.id === id ? { ok: true, already: true } : { ok: false, error: 'Už běží jiné ověření.' };
+  if (job) return job.id === id ? { ok: true, already: true } : { ok: false, error: 'Another verification is already running.' };
   const st = jobStatus(moves);
   if (st.done && st.value !== null) return { ok: true, cached: true };
   const f = jobFiles(id);

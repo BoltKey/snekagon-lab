@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="cs">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -57,21 +57,21 @@
 <body>
 <header>
   <h1>🐍 Snekagon Lab</h1>
-  <button id="bNew">Nová hra</button>
-  <button id="bFirst" title="Na začátek (Home)">⏮</button>
-  <button id="bBack" title="O tah zpět (←)">◀</button>
-  <button id="bFwd" title="O tah vpřed (→)">▶</button>
-  <button id="bLast" title="Na konec partie (End)">⏭</button>
+  <button id="bNew">New game</button>
+  <button id="bFirst" title="To the start (Home)">⏮</button>
+  <button id="bBack" title="One move back (←)">◀</button>
+  <button id="bFwd" title="One move forward (→)">▶</button>
+  <button id="bLast" title="To the end of the game (End)">⏭</button>
   <button id="bPass">Pass</button>
   <span>|</span>
-  <label>Čas enginu <select id="secs"><option>1</option><option selected>3</option><option>10</option><option>30</option><option>60</option></select> s</label>
-  <label>Engine <select id="eng"><option value="ab" selected>alfa-beta</option><option value="mcts">MCTS (starý)</option></select></label>
-  <button id="bGo">Engine táhni</button>
-  <button id="bAn">Analyzuj</button>
-  <button id="bSolve" title="Exaktní řešení (výhra/remíza/prohra) v časovém limitu">Vyřešit</button>
-  <label title="Každou zobrazenou pozici (i při procházení partie) krátce analyzovat"><input type="checkbox" id="live" checked> živé hodnocení</label>
-  <label><input type="checkbox" id="auto0"> engine hraje <b style="color:var(--p0)">červeného</b></label>
-  <label><input type="checkbox" id="auto1" checked> engine hraje <b style="color:var(--p1)">modrého</b></label>
+  <label>Engine time <select id="secs"><option>1</option><option selected>3</option><option>10</option><option>30</option><option>60</option></select> s</label>
+  <label>Engine <select id="eng"><option value="ab" selected>alpha-beta</option><option value="mcts">MCTS (old)</option></select></label>
+  <button id="bGo">Engine move</button>
+  <button id="bAn">Analyze</button>
+  <button id="bSolve" title="Exact solution (win/draw/loss) within the time limit">Solve</button>
+  <label title="Briefly analyze every shown position (also while browsing the game)"><input type="checkbox" id="live" checked> live evaluation</label>
+  <label><input type="checkbox" id="auto0"> engine plays <b style="color:var(--p0)">red</b></label>
+  <label><input type="checkbox" id="auto1" checked> engine plays <b style="color:var(--p1)">blue</b></label>
   <span class="muted" id="backend"></span>
 </header>
 <main>
@@ -79,28 +79,28 @@
     <div class="status" id="status"></div>
     <div class="tray" id="tray"></div>
     <svg id="board"></svg>
-    <div class="muted">Vyber dílek (klávesy 1–8), najeď na pole, kolečkem myši / R / pravým tlačítkem přepínáš polohy dílku přes to pole, klik = zahrát.</div>
+    <div class="muted">Pick a piece (keys 1–8) and hover over a cell: the mouse wheel, R or a right click cycles through the placements of the piece over that cell, a click plays it.</div>
   </div>
   <div>
     <div class="card">
-      <b>Hodnocení</b> <span class="muted" id="evalTxt"></span>
+      <b>Evaluation</b> <span class="muted" id="evalTxt"></span>
       <div class="evalbar"><div id="evalFill" style="width:50%"></div></div>
-      <div id="anl" class="muted">Zatím bez analýzy.</div>
+      <div id="anl" class="muted">No analysis yet.</div>
     </div>
     <div class="card" style="margin-top:12px" id="jobCard">
-      <b>Exaktní ověření</b>
-      <label class="muted" style="float:right" title="Jakmile se zahraje 4. tah, spustí se exaktní ověření pozice"><input type="checkbox" id="autoVerify" checked> po 4. tahu automaticky</label>
+      <b>Exact verification</b>
+      <label class="muted" style="float:right" title="Starts an exact verification of the position once the 4th move is played"><input type="checkbox" id="autoVerify" checked> automatically after move 4</label>
       <div id="jobInfo" class="muted" style="margin-top:4px">…</div>
       <div class="evalbar" style="background:#e8e2d6"><div id="jobFill" style="width:0%;background:#8d6e00"></div></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button id="bVerify">Exaktně ověřit tuto pozici</button>
-        <button id="bJobShow">Zobrazit ověřovanou pozici</button>
-        <button id="bJobStop">Zastavit</button>
+        <button id="bVerify">Verify this position exactly</button>
+        <button id="bJobShow">Show the verified position</button>
+        <button id="bJobStop">Stop</button>
       </div>
       <div id="jobResult" style="margin-top:6px"></div>
     </div>
     <div class="card" style="margin-top:12px">
-      <b>Partie</b>
+      <b>Game</b>
       <div class="hist" id="hist"></div>
     </div>
   </div>
@@ -137,7 +137,7 @@ async function pickBackend() {
   worker = new Worker('snek-worker.js');
   worker.onmessage = e => { const res = pending.get(e.data.id); pending.delete(e.data.id); res(JSON.parse(e.data.out)); };
   document.getElementById('jobCard').hidden = true;
-  document.getElementById('backend').textContent = 'engine: v prohlížeči (1 jádro)';
+  document.getElementById('backend').textContent = 'engine: in your browser (1 core)';
 }
 function setBusy(b) { busy = b; document.querySelectorAll('header button').forEach(x => x.disabled = b); document.body.style.cursor = b ? 'progress' : ''; if (!b && st) render(); }
 
@@ -200,15 +200,15 @@ function render() {
   }
   if (preview) for (const i of preview.c) cells[i].setAttribute('class', 'hex prev' + st.stm);
   // status
-  const who = st.stm === 0 ? '<span class="dot" style="background:var(--p0)"></span>červený' : '<span class="dot" style="background:var(--p1)"></span>modrý';
+  const who = st.stm === 0 ? '<span class="dot" style="background:var(--p0)"></span>red' : '<span class="dot" style="background:var(--p1)"></span>blue';
   let s;
   if (st.over) {
     const [a, b] = st.longest;
-    s = `<b>Konec hry.</b> Červený ${a}, modrý ${b} → ${a > b ? 'vyhrál červený' : a < b ? 'vyhrál modrý' : 'remíza'}`;
+    s = `<b>Game over.</b> Red ${a}, blue ${b}: ${a > b ? 'red wins' : a < b ? 'blue wins' : 'a draw'}`;
   } else {
-    s = `Tah ${st.ply}: na tahu ${who}. ${st.legal.length} legálních tahů.`;
+    s = `Move ${st.ply}: ${who} to move, ${st.legal.length} legal moves.`;
   }
-  s += `<div class="muted">Nejdelší had: červený ${st.longest[0]} (max ${st.bounds[0][1]}), modrý ${st.longest[1]} (max ${st.bounds[1][1]})</div>`;
+  s += `<div class="muted">Longest snake: red ${st.longest[0]} (at most ${st.bounds[0][1]}), blue ${st.longest[1]} (at most ${st.bounds[1][1]})</div>`;
   document.getElementById('status').innerHTML = s;
   // tray
   const tray = document.getElementById('tray');
@@ -226,14 +226,14 @@ function render() {
     const other = document.createElement('span');
     other.className = 'muted';
     other.style.alignSelf = 'center';
-    other.textContent = 'soupeři zbývá: ' + st.avail[1 - st.stm].join(', ');
+    other.textContent = 'opponent has left: ' + st.avail[1 - st.stm].join(', ');
     tray.appendChild(other);
   }
   document.getElementById('bPass').disabled = busy || st.over || st.legal.length > 0;
   // history
   const h = document.getElementById('hist');
   const cur = st.history.length;
-  h.innerHTML = `<span data-k="-1" class="${cur === 0 ? 'cur' : ''}">začátek</span> ` + game.map((m, k) =>
+  h.innerHTML = `<span data-k="-1" class="${cur === 0 ? 'cur' : ''}">start</span> ` + game.map((m, k) =>
     `<span data-k="${k}" class="${k === cur - 1 ? 'cur' : k >= cur ? 'future' : ''}" style="color:var(--p${k % 2 === 0 ? 0 : 1})">${k}. ${m}</span>`).join(' ');
   h.querySelectorAll('span').forEach(sp => sp.onclick = () => gotoPly(+sp.dataset.k + 1));
   const curEl = h.querySelector('.cur');
@@ -253,7 +253,7 @@ function miniPiece(p, pl) {
 
 // ---------- actions ----------
 async function apply(res) {
-  if (!res.ok) { alert(res.error || 'chyba'); return false; }
+  if (!res.ok) { alert(res.error || 'error'); return false; }
   st = res.state || res;
   const h = st.history.map(m => m.s);
   const isPrefix = h.length <= game.length && h.every((m, i) => m === game[i]);
@@ -263,7 +263,7 @@ async function apply(res) {
     sel = [...st.avail[st.stm]].reverse().find(p => lp.includes(p)) || null;
   }
   lastAnalysis = null;
-  document.getElementById('anl').textContent = 'Zatím bez analýzy.';
+  document.getElementById('anl').textContent = 'No analysis yet.';
   updatePreview();
   scheduleLive();
   return true;
@@ -286,7 +286,7 @@ function scheduleLive() {
   const k = posKey();
   if (evalCache.has(k)) { showAnalysis(evalCache.get(k), false); return; }
   if (!document.getElementById('live').checked) return;
-  document.getElementById('anl').textContent = 'Počítám hodnocení…';
+  document.getElementById('anl').textContent = 'Evaluating…';
   liveTimer = setTimeout(runLive, 250);
 }
 async function runLive() {
@@ -301,8 +301,8 @@ function showGameOver() {
   const [a, b] = st.longest;
   const p0 = a > b ? 1 : a < b ? 0 : 0.5;
   document.getElementById('evalFill').style.width = (p0 * 100) + '%';
-  document.getElementById('evalTxt').innerHTML = 'konec hry';
-  document.getElementById('anl').innerHTML = `Konec hry: červený ${a}, modrý ${b}.`;
+  document.getElementById('evalTxt').innerHTML = 'game over';
+  document.getElementById('anl').innerHTML = `Game over: red ${a}, blue ${b}.`;
 }
 async function playMove(s) {
   if (busy) return;
@@ -327,7 +327,7 @@ async function engineMove() {
   const res = await cmd('go ' + secs());
   pendingEngine = false;
   if (res.ok && res.analysis) storeAnalysis(preKey, res.analysis);
-  if (res.ok) engineNote = { key: preKey + (preKey ? ' ' : '') + res.played.s, text: 'Engine zahrál ' + res.played.s + '.' };
+  if (res.ok) engineNote = { key: preKey + (preKey ? ' ' : '') + res.played.s, text: 'The engine played ' + res.played.s + '.' };
   await apply(res);
   setBusy(false);
   maybeAutoVerify();
@@ -345,44 +345,44 @@ function maybeAuto() {
   if (!st || st.over) return;
   if (document.getElementById('auto' + st.stm).checked) { pendingEngine = true; clearTimeout(liveTimer); setTimeout(engineMove, 50); }
 }
-function valTxt(v) { return v === 1 ? '<span class="win">výhra</span>' : v === -1 ? '<span class="loss">prohra</span>' : '<span class="drawc">remíza</span>'; }
+function valTxt(v) { return v === 1 ? '<span class="win">win</span>' : v === -1 ? '<span class="loss">loss</span>' : '<span class="drawc">draw</span>'; }
 function fmtScore(m) {
-  if (m.exact === 1) return '<span class="win">výhra</span>';
-  if (m.exact === -1) return '<span class="loss">prohra</span>';
-  if (m.exact === 0) return '<span class="drawc">remíza</span>';
+  if (m.exact === 1) return '<span class="win">win</span>';
+  if (m.exact === -1) return '<span class="loss">loss</span>';
+  if (m.exact === 0) return '<span class="drawc">draw</span>';
   if (m.score !== undefined && lastAnalysis && lastAnalysis.engine === 'ab')
-    return (m.n ? '' : '<span class="muted">≤ </span>') + `${(m.wr * 100).toFixed(0)} %`;
-  return `${(m.wr * 100).toFixed(1)} %`;
+    return (m.n ? '' : '<span class="muted">≤ </span>') + `${(m.wr * 100).toFixed(0)}%`;
+  return `${(m.wr * 100).toFixed(1)}%`;
 }
 function showAnalysis(a, played) {
   lastAnalysis = a;
   const mover = a.stm; // stm when analysed
-  const color = mover === 0 ? 'červeného' : 'modrého';
+  const color = mover === 0 ? 'red' : 'blue';
   const b = a.moves[0];
   let p0, head;
   if (a.exact) {
     const v = a.value;
-    head = `Vyřešeno: ${valTxt(v)} pro ${color}`;
+    head = `Solved: ${valTxt(v)} for ${color}`;
     const vRed = mover === 0 ? v : -v;
     p0 = vRed === 1 ? 1 : vRed === -1 ? 0 : 0.5;
   } else if (a.engine === 'ab') {
     const wr = b ? b.wr : 0.5;
     p0 = mover === 0 ? wr : 1 - wr;
-    head = `Alfa-beta, hloubka ${a.depth}: ${b.exact === 1 ? 'vynucená výhra' : b.exact === -1 ? 'prohraná pozice' : fmtScore(b) + ' šance na výhru'} pro ${color}`;
+    head = `Alpha-beta, depth ${a.depth}: ${b.exact === 1 ? 'a forced win' : b.exact === -1 ? 'a lost position' : fmtScore(b) + ' chance to win'} for ${color}`;
   } else {
     const wr = b ? b.wr : 0.5;
     p0 = mover === 0 ? wr : 1 - wr;
-    head = `MCTS odhad: ${(wr * 100).toFixed(0)} % pro ${color}`;
+    head = `MCTS estimate: ${(wr * 100).toFixed(0)}% for ${color}`;
   }
   document.getElementById('evalFill').style.width = (p0 * 100).toFixed(0) + '%';
-  document.getElementById('evalTxt').innerHTML = `červený ${(p0 * 100).toFixed(0)} %`;
+  document.getElementById('evalTxt').innerHTML = `red ${(p0 * 100).toFixed(0)}%`;
   const rows = a.moves.slice(0, 25).map((m, k) =>
     `<tr class="mv" data-k="${k}"><td>${k + 1}</td><td>${m.m.s}</td><td>${fmtScore(m)}</td><td class="muted">${a.engine === 'mcts' ? m.n : ''}</td></tr>`).join('');
   const el = document.getElementById('anl');
   const note = engineNote && st && engineNote.key === posKey() ? engineNote.text + ' ' : '';
   el.innerHTML = `<div>${note}${head}</div>
-    <div class="muted">${a.engine === 'ab' ? 'Odhad šance na výhru hráče na tahu po daném tahu (naučená hodnoticí funkce + prohledávání); „≤“ = jen horní mez (tah je horší než nejlepší).' : ''}</div>
-    <table><tr><th>#</th><th>tah</th><th>hodnota</th><th>${a.engine === 'mcts' ? 'návštěvy' : ''}</th></tr>${rows}</table>`;
+    <div class="muted">${a.engine === 'ab' ? 'The chance to win for the side to move after each move (learned evaluation + search); “≤” = only an upper bound (the move is worse than the best one).' : ''}</div>
+    <table><tr><th>#</th><th>move</th><th>value</th><th>${a.engine === 'mcts' ? 'visits' : ''}</th></tr>${rows}</table>`;
   el.querySelectorAll('tr.mv').forEach(tr => {
     const m = a.moves[+tr.dataset.k].m;
     tr.onmouseenter = () => { if (!played) updatePreview(m); };
@@ -403,26 +403,26 @@ document.getElementById('bAn').onclick = analyzeNow;
 document.getElementById('bSolve').onclick = async () => {
   if (busy || !st || st.over) return;
   setBusy(true);
-  document.getElementById('anl').textContent = 'Řeším…';
+  document.getElementById('anl').textContent = 'Solving…';
   const r = await cmd('solve ' + Math.max(10, +secs() * 3));
   setBusy(false);
   if (!r.ok) return;
-  const color = r.stm === 0 ? 'červeného' : 'modrého';
+  const color = r.stm === 0 ? 'red' : 'blue';
   const solved = r.moves.filter(m => m.v !== -9).length;
   const head = r.value === -9
-    ? `Nevyřešeno v limitu (${solved}/${r.moves.length} tahů vyřešeno, ${(r.nodes / 1e6).toFixed(1)} M uzlů, ${r.seconds.toFixed(1)} s)`
-    : `Exaktně: ${valTxt(r.value)} pro ${color} (${(r.nodes / 1e6).toFixed(1)} M uzlů, ${r.seconds.toFixed(1)} s)`;
+    ? `Not solved within the limit (${solved}/${r.moves.length} moves solved, ${(r.nodes / 1e6).toFixed(1)} M nodes, ${r.seconds.toFixed(1)} s)`
+    : `Exact: ${valTxt(r.value)} for ${color} (${(r.nodes / 1e6).toFixed(1)} M nodes, ${r.seconds.toFixed(1)} s)`;
   if (r.value !== -9) {
     const vRed = r.stm === 0 ? r.value : -r.value;
     const p0 = vRed === 1 ? 1 : vRed === -1 ? 0 : 0.5;
     document.getElementById('evalFill').style.width = (p0 * 100) + '%';
-    document.getElementById('evalTxt').innerHTML = 'vyřešeno';
+    document.getElementById('evalTxt').innerHTML = 'solved';
   }
   const rows = r.moves.slice(0, 30).map((m, k) =>
     `<tr class="mv" data-k="${k}"><td>${k + 1}</td><td>${m.m.s}</td><td>${m.v === -9 ? '<span class="muted">?</span>' : valTxt(m.v)}</td></tr>`).join('');
   const el = document.getElementById('anl');
-  el.innerHTML = `<div>${head}</div><div class="muted">Po nalezení vítězného tahu se zbytek už nepočítá.</div>
-    <table><tr><th>#</th><th>tah</th><th>hodnota</th></tr>${rows}</table>`;
+  el.innerHTML = `<div>${head}</div><div class="muted">Once a winning move is found, the rest is not computed.</div>
+    <table><tr><th>#</th><th>move</th><th>value</th></tr>${rows}</table>`;
   el.querySelectorAll('tr.mv').forEach(tr => {
     const m = r.moves[+tr.dataset.k].m;
     tr.onmouseenter = () => updatePreview(m);
@@ -478,43 +478,43 @@ function renderJob(j, forShown) {
   document.getElementById('bJobStop').disabled = !j.running;
   document.getElementById('bJobShow').disabled = !j.exists || (st && j.moves === posKey());
   if (!j.exists) {
-    info.textContent = forShown ? 'Tato pozice zatím ověřená není.' : 'Žádné ověření.';
+    info.textContent = forShown ? 'This position has not been verified yet.' : 'No verification.';
     resEl.innerHTML = '';
     document.getElementById('jobFill').style.width = '0%';
     return;
   }
   const mv = j.moves.split(' ');
-  const p = mv.length, stmName = p % 2 === 0 ? 'červený' : 'modrý', stmGen = p % 2 === 0 ? 'červeného' : 'modrého';
-  const oppGen = p % 2 === 0 ? 'modrého' : 'červeného';
+  const p = mv.length, stmName = p % 2 === 0 ? 'red' : 'blue', stmGen = stmName;
+  const oppGen = p % 2 === 0 ? 'blue' : 'red';
   const total = j.total || '?';
   document.getElementById('jobFill').style.width = j.total ? (100 * j.solved / j.total).toFixed(1) + '%' : '0%';
-  const where = `pozice po ${p} tazích (${mv.join(' ')}), na tahu ${stmName}`;
-  const found = `výhry ${j.wins.length}, remízy ${j.draws.length}, prohry ${j.losses}`;
+  const where = `position after ${p} moves (${mv.join(' ')}), ${stmName} to move`;
+  const found = `wins ${j.wins.length}, draws ${j.draws.length}, losses ${j.losses}`;
   if (j.running) {
     let eta = '';
     if (j.avgSec && j.total) {
       const min = (j.total - j.solved) * j.avgSec / j.threads / 60;
-      eta = min < 1 ? ', zbývá < 1 min' : `, zbývá ~${Math.round(min)} min`;
+      eta = min < 1 ? ', < 1 min left' : `, ~${Math.round(min)} min left`;
     }
-    info.innerHTML = `Počítám: ${where}.<br>Vyřešeno ${j.solved}/${total} tahů ${stmGen} (${found})${eta}.`;
+    info.innerHTML = `Computing: ${where}.<br>Solved ${j.solved}/${total} of ${stmGen}'s moves (${found})${eta}.`;
   } else if (!j.done) {
-    info.innerHTML = `Přerušeno: ${where}. Vyřešeno ${j.solved}/${total} (${found}). Tlačítko „Exaktně ověřit“ na této pozici naváže.`;
+    info.innerHTML = `Interrupted: ${where}. Solved ${j.solved}/${total} (${found}). “Verify this position exactly” on this position continues it.`;
   } else {
-    info.innerHTML = `Hotovo: ${where}.`;
+    info.innerHTML = `Done: ${where}.`;
   }
   let verdict = '';
   const last = p >= 1 ? `${p - 1}. ${mv[p - 1]}` : '';
   const prev = p >= 2 ? `${p - 2}. ${mv[p - 2]}` : '';
   if (j.done && j.value === 1)
-    verdict = `<b class="win">Vyhraná pozice pro ${stmGen}.</b> ${last ? `Poslední tah ${oppGen} (${last}) byl tedy <b>prohrávající</b>.` : ''}`;
+    verdict = `<b class="win">A won position for ${stmGen}.</b> ${last ? `So the last move by ${oppGen} (${last}) was <b>a losing move</b>.` : ''}`;
   else if (j.done && j.value === -1)
-    verdict = `<b class="loss">Prohraná pozice pro ${stmGen}</b> – všech ${j.total} tahů prohrává. ${last ? `Tah ${oppGen} ${last} byl <b>vítězný</b>` : ''}${prev ? `, a tah ${stmGen} ${prev} byl <b>prohrávající</b>.` : '.'}`;
+    verdict = `<b class="loss">A lost position for ${stmGen}</b>: all ${j.total} moves lose. ${last ? `The move ${last} by ${oppGen} was <b>a winning move</b>` : ''}${prev ? `, and the move ${prev} by ${stmGen} was <b>a losing move</b>.` : '.'}`;
   else if (j.done && j.value === 0)
-    verdict = `<b class="drawc">Remíza při dokonalé hře obou stran.</b> ${last ? `Tah ${oppGen} ${last} tedy neprohrál, ale ani nevyhrál.` : ''}`;
+    verdict = `<b class="drawc">A draw with perfect play from both sides.</b> ${last ? `So the move ${last} by ${oppGen} neither lost nor won.` : ''}`;
   else if (j.wins.length)
-    verdict = `Nalezen vítězný tah pro ${stmGen} – pozice je vyhraná.`;
+    verdict = `Found a winning move for ${stmGen}: the position is won.`;
   const good = [...j.wins.map(m => [m, 'win']), ...j.draws.map(m => [m, 'draw'])];
-  const list = good.length ? '<div class="muted">Nejlepší tahy (najetí = náhled, klik = zahrát, když je pozice zobrazená):</div>' +
+  const list = good.length ? '<div class="muted">Best moves (hover = preview, click = play, when the position is shown):</div>' +
     good.slice(0, 20).map(([m, v]) => `<span class="jobmv" data-m="${m}" style="cursor:pointer;margin-right:8px">${m} ${valTxt(v === 'win' ? 1 : 0)}</span>`).join('') : '';
   resEl.innerHTML = `<div>${verdict}</div>${list}`;
   resEl.querySelectorAll('.jobmv').forEach(el => {
