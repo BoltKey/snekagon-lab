@@ -69,7 +69,6 @@
   <button id="bPass">Pass</button>
   <span>|</span>
   <label>Engine time <select id="secs"><option selected>10</option><option>30</option><option>60</option></select> s</label>
-  <label>Engine <select id="eng"><option value="ab" selected>alpha-beta</option><option value="mcts">MCTS (old)</option></select></label>
   <button id="bGo">Engine move</button>
   <button id="bAn">Analyze</button>
   <button id="bSolve" title="Exact solution (win/draw/loss) within the time limit">Solve</button>
@@ -489,7 +488,6 @@ document.getElementById('bSolve').onclick = async () => {
     tr.onclick = () => playMove(m.s);
   });
 };
-document.getElementById('eng').onchange = async (e) => { await cmd('engine ' + e.target.value); };
 document.addEventListener('keydown', e => {
   if (!st || e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
   if (e.key === 'ArrowLeft') { e.preventDefault(); gotoPly(st.history.length - 1); return; }
@@ -599,7 +597,7 @@ document.getElementById('bJobShow').onclick = async () => {
     const cur = await fetchJob();
     if (cur.running) { runningMoves = cur.moves; pollJob(); }
   }
-  await cmd('engine ' + document.getElementById('eng').value);
+  await cmd('engine ab');  // the alpha-beta engine (the old MCTS one stays in the protocol: `engine mcts`)
   // ?moves=1:60+4B:16,27,28,39+...  opens that position (the engine stays off for both colours)
   const pm = new URLSearchParams(location.search).get('moves');
   if (pm) {
