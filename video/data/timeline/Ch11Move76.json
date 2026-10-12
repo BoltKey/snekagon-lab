@@ -1,0 +1,71 @@
+{
+ "scene": "Ch11Move76",
+ "beats": [
+  {
+   "key": "4a60e15d2b1d32f7",
+   "text": "Let’s look at the very first answer blue tried, because it is the most natural one. Blue wraps a U around red’s starting hex. The centre end of red’s snake is dead.",
+   "start": 0.0,
+   "duration": 11.166
+  },
+  {
+   "key": "86a22de6736c0973",
+   "text": "Red answers by growing from the other end, and the solver proves that this position is exactly a draw. With perfect play from here, neither side can force a win.",
+   "start": 11.5,
+   "duration": 10.829
+  },
+  {
+   "key": "67163db14e54d7d4",
+   "text": "Red’s answer is quietly brutal. Red now has these spaces reserved. Red has a free road into the bottom of the board. The natural answer is to wall it off, right under red’s two cells, and the engine rates that highly too. But red simply turns the other way and flows around the wall to the left, and blue loses, 15 to 16.",
+   "start": 22.667,
+   "duration": 23.737
+  },
+  {
+   "key": "a8aee8a0b6b01f52",
+   "text": "So here is a challenge for you. Pause the video right here, and try to find a move for blue that does not lose, or at least one that feels strong. Ready?",
+   "start": 46.75,
+   "duration": 10.484
+  },
+  {
+   "key": "671e4e22d9dc2d71",
+   "text": "Three.",
+   "start": 58.633,
+   "duration": 0.776
+  },
+  {
+   "key": "55691f90515f1072",
+   "text": "Two.",
+   "start": 60.0,
+   "duration": 0.691
+  },
+  {
+   "key": "194d30aed0d3bdc5",
+   "text": "One.",
+   "start": 61.283,
+   "duration": 0.706
+  },
+  {
+   "key": "fd219dd3f1962be9",
+   "text": "Here it is. Did you get it? If not, don’t feel bad. The engine, which beats most humans comfortably, ranked this move only 76th, and all 75 moves it liked better lose.",
+   "start": 62.583,
+   "duration": 13.022
+  },
+  {
+   "key": "47bcf334c79968e4",
+   "text": "And here is why the 76th works. Blue starts its second snake not in the open space at the bottom, but on the left, close enough to the top end of its first snake that a single three-piece can join them. Red, though, still threatens to grow into the bottom of the board. Red does flow into its two cells and cuts one end of the new snake off. Blue’s next piece, an L at the bottom, looks almost random, but it is not. Of blue’s 159 possible moves here, only 21 keep the draw, and every single one of them goes into the bottom of the board: blue has to claim that space before red does. Then blue’s three-piece joins the two snakes: eight cells become fifteen.",
+   "start": 76.4,
+   "duration": 42.792
+  },
+  {
+   "key": "cb618a18b46c0340",
+   "text": "From there, the game ends in a draw, seventeen to seventeen.",
+   "start": 120.183,
+   "duration": 3.783
+  },
+  {
+   "key": "8f86f17d06bdb099",
+   "text": "Think about what that means for a human player. The move that saves the game is one that a strong engine ranks 76th. A person sitting at the table would almost never find it, and would never know it was there.",
+   "start": 124.95,
+   "duration": 13.195
+  }
+ ]
+}

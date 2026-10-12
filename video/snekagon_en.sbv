@@ -1,0 +1,1323 @@
+0:00:00.150,0:00:03.335
+Here is a game you can
+explain in under a minute.
+
+0:00:03.385,0:00:06.910
+Two players, one board, a
+handful of small pieces each.
+
+0:00:07.483,0:00:09.385
+You take turns placing them.
+
+0:00:09.435,0:00:13.587
+Each turn, either start a new snake
+that doesn't touch any other pieces,
+
+0:00:13.861,0:00:15.605
+or grow one of your snakes.
+
+0:00:15.839,0:00:18.493
+Whoever ends up with
+the longest snake wins.
+
+0:00:19.783,0:00:22.114
+Each player gets just seven real turns.
+
+0:00:22.164,0:00:26.583
+The whole game fits on a coffee
+table and takes about 5 minutes.
+
+0:00:29.883,0:00:33.154
+So here is the question that
+has been bugging me for years.
+
+0:00:33.204,0:00:36.230
+If both players play perfectly, who wins?
+
+0:00:36.280,0:00:40.368
+It feels like a question a computer
+should answer in an evening.
+
+0:00:40.418,0:00:46.274
+This video is about why it did not,
+what we found when we tried anyway,
+
+0:00:46.324,0:00:48.709
+and a move the engine
+had ranked only 76th.
+
+0:00:48.759,0:00:53.843
+One move that seemed weak at first,
+but changed the whole picture.
+
+0:01:05.890,0:01:08.094
+Hi, I am Adam, a Czech game designer.
+
+0:01:08.144,0:01:11.256
+You may know me for my
+games Project L or Drillers.
+
+0:01:11.306,0:01:15.168
+But today, I would like to tell
+you about one of my earlier games,
+
+0:01:15.218,0:01:18.840
+much less known, but no
+less interesting: Snekagon.
+
+0:01:18.900,0:01:21.676
+This is a story about a
+game that didn't sell well,
+
+0:01:21.726,0:01:24.872
+a story about a question
+I could not answer,
+
+0:01:24.922,0:01:27.105
+a story about player psychology,
+
+0:01:27.155,0:01:30.770
+and a story about the deep beauty
+and mystery of board games.
+
+0:01:32.550,0:01:34.283
+The idea came out of thin air.
+
+0:01:34.333,0:01:38.609
+I was riding home from a long,
+demanding game night back in 2019,
+
+0:01:38.659,0:01:41.695
+and I wanted something
+completely elementary,
+
+0:01:41.745,0:01:44.404
+as natural and simple as a game can get.
+
+0:01:44.454,0:01:49.550
+Somewhere on that tram ride I
+caught it, and I did not let go.
+
+0:01:51.217,0:01:52.731
+The first games surprised me.
+
+0:01:52.781,0:01:55.986
+The rules are tiny, but
+the board fills up fast,
+
+0:01:56.036,0:02:00.097
+and every piece you place is a
+threat and a wall at the same time.
+
+0:02:05.990,0:02:10.185
+After a playtest at CGE in February
+2020, where it was played a few times,
+
+0:02:10.235,0:02:14.449
+I wrote this in my diary: "This
+game keeps fascinating me.
+
+0:02:14.499,0:02:17.644
+An area-control abstract
+that lasts eight moves?
+
+0:02:17.694,0:02:18.527
+That can't work.
+
+0:02:18.577,0:02:19.872
+But it does.
+
+0:02:19.922,0:02:23.844
+You can never calculate
+more than seven moves ahead,
+
+0:02:23.894,0:02:26.804
+simply because there will
+never be that many moves left.
+
+0:02:26.854,0:02:31.670
+It is about planning and intuition,
+and every game is different."
+
+0:02:32.617,0:02:36.097
+And the natural question
+followed: who wins?
+
+0:02:36.147,0:02:37.817
+This game is small.
+
+0:02:37.867,0:02:40.119
+Ninety-one cells, seven turns each.
+
+0:02:40.169,0:02:43.697
+It has no dice, no cards,
+no hidden information.
+
+0:02:43.747,0:02:48.697
+So somewhere out there is a definite
+answer: either the first player wins,
+
+0:02:48.747,0:02:52.143
+or the second player wins, or
+perfect play ends in a tie.
+
+0:02:52.193,0:02:56.227
+It really feels like a game
+that should be easy to solve.
+
+0:02:58.650,0:03:00.687
+I pitched the game around.
+
+0:03:00.737,0:03:06.094
+In December 2019, Gigamic, the publisher
+of Quarto and Squadro, turned it down.
+
+0:03:06.144,0:03:09.750
+The strategy part seemed
+a bit too light for them.
+
+0:03:10.200,0:03:12.083
+I tried to ask what they meant by that,
+
+0:03:12.133,0:03:16.360
+or which winning strategies they
+found, but never heard back.
+
+0:03:17.433,0:03:22.633
+In the end I published it with a small
+Czech publisher Maty Moves in 2020.
+
+0:03:24.833,0:03:27.496
+The reception was
+lukewarm, to put it kindly.
+
+0:03:27.546,0:03:31.396
+And one comment kept coming
+back, in different words:
+
+0:03:31.446,0:03:34.983
+the first player has an
+advantage you cannot beat.
+
+0:03:35.967,0:03:40.387
+First player advantage seems to take the
+legs out from underneath this design.
+
+0:03:40.867,0:03:43.033
+Going first gave me a
+near-unbeatable advantage.
+
+0:03:43.083,0:03:46.269
+Maybe if player one doesn't
+take the center space...
+
+0:03:46.319,0:03:47.624
+but why wouldn't you?
+
+0:03:47.674,0:03:49.557
+Still, no fun to feel like a bully.
+
+0:03:51.513,0:03:55.757
+To be clear, this video is not
+here to prove anyone wrong.
+
+0:03:55.807,0:04:00.118
+The game did not land well
+with players, and that's OK.
+
+0:04:00.168,0:04:03.934
+I have no right to tell
+players how they are
+
+0:04:03.984,0:04:06.913
+supposed to have fun playing board games.
+
+0:04:11.717,0:04:13.871
+The board is a hexagon of 91 cells.
+
+0:04:13.921,0:04:17.389
+Each player has a set
+of pieces made of hexes:
+
+0:04:17.439,0:04:22.467
+a domino, two shapes of three,
+and four shapes of four.
+
+0:04:22.950,0:04:26.826
+The first player, red, also
+gets this: a single hex.
+
+0:04:26.876,0:04:29.797
+Red places it anywhere to start the game.
+
+0:04:29.847,0:04:34.488
+It is such a tiny move that it
+does not really count as a turn,
+
+0:04:34.538,0:04:37.810
+which is why we say each
+player then gets seven turns.
+
+0:04:38.284,0:04:41.712
+So red owns 25 cells of
+material and blue owns 24.
+
+0:04:41.762,0:04:46.184
+Remember that difference;
+the players certainly did.
+
+0:04:46.500,0:04:51.370
+On your turn you place one of your pieces,
+and there are exactly two ways to do it.
+
+0:04:51.850,0:04:54.063
+One: start a new snake.
+
+0:04:54.113,0:04:58.580
+Then the piece must not touch any
+other piece at all, of either colour.
+
+0:04:59.050,0:04:59.561
+Two: grow.
+
+0:04:59.611,0:05:03.261
+The piece touches at least
+one of your own pieces.
+
+0:05:03.311,0:05:05.996
+It is allowed to touch
+the opponent as well,
+
+0:05:06.046,0:05:08.590
+and it may join two of
+your snakes together.
+
+0:05:09.067,0:05:12.317
+Whatever you do, your cells
+must stay snake-shaped:
+
+0:05:12.367,0:05:16.184
+no cell may have more than
+two of your own neighbours,
+
+0:05:16.234,0:05:20.427
+and three of your cells may
+never all touch each other.
+
+0:05:20.477,0:05:23.225
+No branches, no blobs, no sharp turns.
+
+0:05:23.275,0:05:27.677
+Every group of your cells
+is a path, or a closed ring.
+
+0:05:28.150,0:05:30.727
+If you cannot place anything, you pass.
+
+0:05:30.777,0:05:33.751
+When neither player can
+move, the game ends.
+
+0:05:33.801,0:05:38.441
+You measure your longest snake in
+cells, and the longer snake wins.
+
+0:05:38.491,0:05:40.020
+Equal lengths are a tie.
+
+0:05:40.484,0:05:41.964
+That's the whole rulebook.
+
+0:05:44.400,0:05:48.596
+The rules are short, but they
+hide a surprising amount of play.
+
+0:05:48.646,0:05:53.560
+Three ideas carry most of it, and all
+three show up in the game we just watched.
+
+0:05:56.233,0:05:58.627
+The most direct weapon is a wall.
+
+0:05:58.677,0:06:01.189
+Red has just started a second snake.
+
+0:06:01.239,0:06:04.670
+Blue answers with a U-shaped piece
+right against one of its ends,
+
+0:06:04.720,0:06:09.583
+and that end is dead: there is
+nowhere left for it to grow.
+
+0:06:10.040,0:06:13.465
+Starting a new snake
+looks like a wasted move,
+
+0:06:13.515,0:06:17.120
+because it adds nothing
+to your longest snake.
+
+0:06:17.170,0:06:19.558
+But it can be an investment.
+
+0:06:19.608,0:06:23.494
+Red's second snake started
+far away from its first,
+
+0:06:23.544,0:06:27.222
+and on move nine a single
+two-piece joins the two:
+
+0:06:27.272,0:06:29.900
+seven cells become fourteen in one move.
+
+0:06:30.367,0:06:32.469
+Walls also work the other way round.
+
+0:06:33.049,0:06:37.003
+The cells right next to the middle
+of a snake are lost for its owner,
+
+0:06:37.053,0:06:40.676
+since a piece there would give
+a body cell a third neighbour,
+
+0:06:40.726,0:06:46.550
+but for the opponent they are perfectly
+good: reserved, to be used whenever needed.
+
+0:06:46.600,0:06:50.123
+In this game, two cells beside
+red's snake, up in the corner,
+
+0:06:50.173,0:06:55.187
+belong to blue from now on, and blue's
+very last piece goes straight into them.
+
+0:06:55.237,0:07:00.112
+As the board fills, these dead cells spread
+and split the free space into pockets.
+
+0:07:00.162,0:07:03.265
+Late in the game the question
+is not how many pieces you have,
+
+0:07:03.315,0:07:06.097
+but how many cells you can still reach.
+
+0:07:12.133,0:07:15.688
+Throughout the years, I focused
+on other projects at CGE:
+
+0:07:15.738,0:07:18.628
+joining the Arnak team
+for all the expansions,
+
+0:07:18.678,0:07:21.419
+working on SETI and its
+expansion, and more.
+
+0:07:21.469,0:07:25.063
+But this game stayed in the
+back of my mind all those years.
+
+0:07:25.783,0:07:29.107
+Snekagon is just seven turns
+on a fairly small board.
+
+0:07:29.157,0:07:32.394
+It looks like a game that
+can be solved easily.
+
+0:07:32.444,0:07:35.941
+I gave it a few shots, and always failed.
+
+0:07:36.475,0:07:40.992
+I tried some basic minimax search
+algorithms that I had a general idea about,
+
+0:07:41.042,0:07:44.677
+but that was just not
+enough to tackle this,
+
+0:07:44.727,0:07:49.670
+and long discussions with strong players
+of abstract games did not crack it either.
+
+0:07:49.720,0:07:54.583
+At that point, I knew this would
+be quite a problem to solve.
+
+0:07:55.666,0:07:59.282
+Meanwhile, the advent of large
+language models was unfolding.
+
+0:07:59.817,0:08:04.445
+Of course I asked them to solve
+the game, and none of them could.
+
+0:08:04.495,0:08:08.036
+Then Opus 5.5 came out, and I
+decided to try one more time.
+
+0:08:08.086,0:08:14.676
+Not by asking for the answer, but by
+asking it to build the tools to find one.
+
+0:08:16.850,0:08:18.759
+The first step was not solving the game.
+
+0:08:18.809,0:08:21.889
+It was getting a program
+that plays it well.
+
+0:08:21.939,0:08:24.230
+In the first session we
+had a fast rules engine,
+
+0:08:24.280,0:08:27.540
+a web board to play on,
+and a first opponent.
+
+0:08:28.550,0:08:31.058
+That first opponent used
+Monte Carlo tree search.
+
+0:08:31.108,0:08:33.860
+It plays thousands of
+random games from each
+
+0:08:33.910,0:08:36.462
+position and prefers
+moves that tend to win.
+
+0:08:36.512,0:08:40.674
+It sounds clever, but I
+beat it comfortably as blue.
+
+0:08:40.724,0:08:45.164
+Random games simply do not understand
+walls: out of two thousand legal moves,
+
+0:08:45.214,0:08:48.574
+often only a handful really
+matter, usually walls,
+
+0:08:48.624,0:08:52.087
+and random games cannot tell
+them apart from the rest.
+
+0:08:52.137,0:08:55.188
+It let itself get boxed
+in again and again.
+
+0:08:55.238,0:08:59.580
+It turned out that the tree is simply
+too wide for Monte Carlo to be effective.
+
+0:09:00.667,0:09:04.390
+The second engine looked ahead
+properly, with alpha-beta search,
+
+0:09:04.684,0:09:07.548
+but judged positions
+with a hand-made rule,
+
+0:09:07.598,0:09:11.747
+and it did even worse: it lost
+to the random games, 2 to 10.
+
+0:09:13.033,0:09:17.342
+So instead of guessing what
+matters, we let the game tell us.
+
+0:09:17.392,0:09:20.552
+The exact solver, which
+we will meet in a moment,
+
+0:09:20.602,0:09:23.537
+can settle positions late in the game.
+
+0:09:23.587,0:09:28.081
+We solved tens of thousands of such
+positions and fitted a simple model,
+
+0:09:28.131,0:09:33.566
+a logistic regression over 13 features
+of the position, to predict who wins.
+
+0:09:33.616,0:09:38.930
+The features are simple things: the
+length of each player's longest snake,
+
+0:09:38.980,0:09:41.545
+how many snake ends can still grow,
+
+0:09:41.595,0:09:47.284
+who reaches which empty cells first, or
+how many separate snakes each player has.
+
+0:09:47.334,0:09:52.898
+With that learned judgement the engine beat
+the random-playout engine 16 games to 0,
+
+0:09:52.948,0:09:55.393
+and it beats me comfortably every time.
+
+0:09:59.217,0:10:00.973
+Playing well is one thing.
+
+0:10:01.023,0:10:03.175
+Solving means something much stronger:
+
+0:10:03.474,0:10:07.057
+proving the result of perfect
+play, with no guessing anywhere.
+
+0:10:08.134,0:10:09.272
+How big is the tree?
+
+0:10:09.322,0:10:11.871
+First, the cheap trick.
+
+0:10:11.921,0:10:16.111
+The board looks the same after
+six rotations and a mirror,
+
+0:10:16.161,0:10:19.219
+so up to twelve positions are really one.
+
+0:10:19.269,0:10:23.622
+That leaves red just 12 truly
+different cells for the 1-hex,
+
+0:10:23.672,0:10:28.894
+and after the centre opening, blue has 172
+truly different replies instead of 2,132.
+
+0:10:28.944,0:10:32.478
+But symmetry only helps at the very start.
+
+0:10:32.528,0:10:38.807
+A few moves in, positions are almost never
+symmetric, and the numbers keep coming:
+
+0:10:38.857,0:10:43.606
+around 1,600 replies for red,
+around 900 for blue after that.
+
+0:10:43.656,0:10:47.224
+They shrink as the board
+fills, but they multiply.
+
+0:10:47.274,0:10:51.017
+Even counting rotated and
+mirrored games as one,
+
+0:10:51.067,0:10:53.738
+sampling random games suggests something
+
+0:10:53.788,0:10:56.286
+like 10^29 different
+ways a game can unfold.
+
+0:10:56.336,0:10:59.514
+You have no chance to look at them all.
+
+0:11:00.584,0:11:04.158
+So the solver has to be clever
+about which parts it never looks at.
+
+0:11:04.537,0:11:06.694
+Four tricks do almost all of the work.
+
+0:11:07.167,0:11:07.759
+One, speed.
+
+0:11:07.809,0:11:12.151
+The whole board fits into a single
+128-bit number, one bit per cell.
+
+0:11:12.201,0:11:16.935
+Every position the solver meets
+becomes a pair of such numbers,
+
+0:11:16.985,0:11:19.350
+one for red and one for blue.
+
+0:11:19.400,0:11:23.731
+Finding all the neighbours of a
+snake is a handful of bit shifts,
+
+0:11:23.781,0:11:28.167
+and the legality of a piece in every
+possible spot is checked at once.
+
+0:11:29.200,0:11:29.826
+Two, memory.
+
+0:11:29.876,0:11:33.334
+Different move orders often
+reach the same position,
+
+0:11:33.384,0:11:35.610
+so every result is stored and reused.
+
+0:11:36.684,0:11:37.372
+Three, bounds.
+
+0:11:37.422,0:11:39.597
+This one is specific to Snekagon.
+
+0:11:39.647,0:11:44.462
+A snake never gets shorter, so its
+current length is a sure lower bound.
+
+0:11:44.512,0:11:47.152
+And we can compute a sure upper bound:
+
+0:11:47.202,0:11:52.845
+the cells a player can still reach,
+filled with the pieces they still have.
+
+0:11:52.895,0:11:56.220
+If blue is already guaranteed
+more than red could ever get,
+
+0:11:56.270,0:11:59.374
+the game is over, even
+with pieces left to play.
+
+0:12:00.434,0:12:01.019
+Four, order.
+
+0:12:01.069,0:12:04.429
+The solver only needs one
+winning move to prove a win,
+
+0:12:04.479,0:12:07.090
+so it tries the most
+promising moves first,
+
+0:12:07.140,0:12:10.374
+ranked by the same learned
+judgement that powers the engine.
+
+0:12:11.434,0:12:15.999
+With all of that, the first real
+test: a position after four moves.
+
+0:12:16.049,0:12:19.227
+The solver checked every one
+of red's 956 distinct moves,
+
+0:12:19.277,0:12:24.443
+11 billion positions in total, and
+proved that red loses after each of them.
+
+0:12:24.493,0:12:28.148
+That took about ten hours
+of single-core computing.
+
+0:12:28.198,0:12:32.114
+For one position, four moves
+into a fifteen-move game.
+
+0:12:34.713,0:12:38.546
+Solving the whole game
+at once was out of reach,
+
+0:12:38.596,0:12:40.919
+so we picked one line
+and tried to prove it.
+
+0:12:40.969,0:12:43.717
+Red opens in the centre.
+
+0:12:43.767,0:12:47.787
+The engine's favourite answer for
+blue is this four-piece at the top,
+
+0:12:47.837,0:12:52.776
+which it rates at about 65 % for blue;
+the next best reply sits around 50 %.
+
+0:12:52.826,0:12:56.138
+This was our first
+glimpse of a real result,
+
+0:12:56.188,0:12:59.202
+and it goes straight
+against what players think:
+
+0:12:59.252,0:13:05.214
+they say the first player wins, but it
+may very well be the other way around.
+
+0:13:05.264,0:13:08.053
+It seemed that blue
+had the better chances,
+
+0:13:08.103,0:13:12.093
+so we tried to actually prove that
+blue always wins with perfect play.
+
+0:13:13.116,0:13:14.733
+What does that take?
+
+0:13:14.783,0:13:17.143
+Red has 1,589 genuinely different replies.
+
+0:13:17.193,0:13:20.910
+For every single one of them
+we need one blue answer,
+
+0:13:20.960,0:13:24.066
+and then a proof that
+every red follow-up loses.
+
+0:13:24.116,0:13:27.931
+Each of those follow-ups is
+a position after five moves,
+
+0:13:27.981,0:13:33.346
+a job one processor core can finish
+in a few minutes, or in a few hours.
+
+0:13:34.416,0:13:37.656
+So I put my home laptop on
+it, working day and night.
+
+0:13:39.016,0:13:40.382
+And it worked.
+
+0:13:40.432,0:13:42.931
+Red reply after red reply fell,
+
+0:13:42.981,0:13:47.888
+almost always to the very first
+blue answer the engine suggested.
+
+0:13:47.938,0:13:50.655
+Sixteen replies proven in a week,
+
+0:13:50.705,0:13:56.713
+each costing between 13 and 241 hours
+of computing, about 60 on average.
+
+0:13:56.763,0:14:00.888
+That sounds like progress,
+until you do the division:
+
+0:14:00.938,0:14:03.269
+sixteen out of 1,589 is one percent.
+
+0:14:03.319,0:14:09.796
+At that pace, this one opening line would
+keep my laptop busy for a year or two.
+
+0:14:12.050,0:14:15.010
+The toughest of the sixteen
+took 241 hours on its own.
+
+0:14:15.060,0:14:18.361
+Red answers with a small
+bent three-piece that
+
+0:14:18.411,0:14:20.933
+runs from the centre
+straight at blue's snake,
+
+0:14:20.983,0:14:23.402
+and blue answers in the top corner.
+
+0:14:23.452,0:14:28.543
+Red grows its snake, and from there
+both sides play for every cell.
+
+0:14:28.593,0:14:32.382
+Each of them builds a second snake.
+
+0:14:32.432,0:14:36.441
+Then blue plays a straight
+four right down the middle,
+
+0:14:36.491,0:14:41.566
+between red's two snakes, and it
+joins blue's own two snakes into one.
+
+0:14:41.616,0:14:43.010
+Blue wins, 21 to 15.
+
+0:14:47.500,0:14:50.261
+It started to look like
+blue actually wins.
+
+0:14:50.311,0:14:51.949
+But then we hit this red reply.
+
+0:14:51.999,0:14:55.294
+Red plays a small bent
+three-piece that runs its
+
+0:14:55.344,0:14:58.949
+snake from the centre
+straight towards blue's snake.
+
+0:14:58.999,0:15:01.639
+The solver tried blue's
+40 most promising answers.
+
+0:15:01.689,0:15:02.920
+All 40 failed.
+
+0:15:02.970,0:15:05.968
+Not by guesswork: for each one,
+
+0:15:06.018,0:15:10.010
+the solver found a red reply and
+proved that blue cannot win after it.
+
+0:15:10.483,0:15:13.983
+In 31 of the 40 cases,
+blue actually loses.
+
+0:15:16.683,0:15:20.063
+In the other 9, red's
+reply holds blue to a draw.
+
+0:15:23.283,0:15:28.023
+That one red reply alone
+ate 282 hours of computing.
+
+0:15:29.650,0:15:35.266
+Let's look at the very first answer blue
+tried, because it is the most natural one.
+
+0:15:35.316,0:15:37.605
+Blue wraps a U around red's starting hex.
+
+0:15:37.655,0:15:40.680
+The centre end of red's snake is dead.
+
+0:15:41.150,0:15:43.426
+Red answers by growing from the other end,
+
+0:15:43.476,0:15:47.132
+and the solver proves that this
+position is exactly a draw.
+
+0:15:47.182,0:15:51.850
+With perfect play from here,
+neither side can force a win.
+
+0:15:52.317,0:15:54.071
+Red's answer is quietly brutal.
+
+0:15:54.121,0:15:57.185
+Red now has these spaces reserved.
+
+0:15:57.235,0:16:00.684
+Red has a free road into
+the bottom of the board.
+
+0:16:00.734,0:16:03.667
+The natural answer is to wall it off,
+
+0:16:03.717,0:16:09.315
+right under red's two cells, and
+the engine rates that highly too.
+
+0:16:09.365,0:16:13.927
+But red simply turns the other way
+and flows around the wall to the left,
+
+0:16:13.977,0:16:15.977
+and blue loses, 15 to 16.
+
+0:16:16.400,0:16:19.094
+So here is a challenge for you.
+
+0:16:19.144,0:16:23.280
+Pause the video right here, and try to
+find a move for blue that does not lose,
+
+0:16:23.330,0:16:25.759
+or at least one that feels strong.
+
+0:16:26.176,0:16:27.176
+Ready?
+
+0:16:28.273,0:16:29.273
+Three.
+
+0:16:29.640,0:16:30.640
+Two.
+
+0:16:30.933,0:16:31.933
+One.
+
+0:16:32.233,0:16:33.844
+Here it is.
+
+0:16:33.894,0:16:35.426
+Did you get it?
+
+0:16:35.476,0:16:37.478
+If not, don't feel bad.
+
+0:16:37.528,0:16:40.631
+The engine, which beats
+most humans comfortably,
+
+0:16:40.681,0:16:45.123
+ranked this move only 76th, and
+all 75 moves it liked better lose.
+
+0:16:46.050,0:16:47.595
+And here is why the 76th works.
+
+0:16:47.645,0:16:52.811
+Blue starts its second snake not in the
+open space at the bottom, but on the left,
+
+0:16:52.861,0:16:55.413
+close enough to the top
+end of its first snake
+
+0:16:55.463,0:16:58.636
+that a single three-piece can join them.
+
+0:16:58.686,0:17:02.795
+Red, though, still threatens to
+grow into the bottom of the board.
+
+0:17:02.845,0:17:07.233
+Red does flow into its two cells and
+cuts one end of the new snake off.
+
+0:17:07.283,0:17:13.290
+Blue's next piece, an L at the bottom,
+looks almost random, but it is not.
+
+0:17:13.340,0:17:16.481
+Of blue's 159 possible moves
+here, only 21 keep the draw,
+
+0:17:16.531,0:17:20.070
+and every single one of them goes
+into the bottom of the board:
+
+0:17:20.120,0:17:23.182
+blue has to claim that
+space before red does.
+
+0:17:23.232,0:17:28.720
+Then blue's three-piece joins the two
+snakes: eight cells become fifteen.
+
+0:17:29.833,0:17:33.513
+From there, the game ends in a
+draw, seventeen to seventeen.
+
+0:17:34.600,0:17:38.093
+Think about what that
+means for a human player.
+
+0:17:38.143,0:17:41.533
+The move that saves the game is one
+that a strong engine ranks 76th.
+
+0:17:41.583,0:17:45.125
+A person sitting at the table
+would almost never find it,
+
+0:17:45.175,0:17:47.670
+and would never know it was there.
+
+0:17:50.283,0:17:51.791
+So, why is it so hard to prove?
+
+0:17:51.841,0:17:57.303
+A proof of a win has a lopsided shape,
+and that shape is the whole problem.
+
+0:17:58.240,0:18:02.537
+To prove that blue wins, blue needs
+just one good move at each of her turns.
+
+0:18:02.587,0:18:06.201
+But she has to answer every
+single move red could make.
+
+0:18:06.251,0:18:09.911
+One branch, then all
+branches, then one, then all.
+
+0:18:09.961,0:18:13.661
+The "one" levels are
+cheap if you guess right.
+
+0:18:13.711,0:18:15.430
+The "all" levels never are.
+
+0:18:16.483,0:18:19.666
+And guessing right is
+exactly what failed us.
+
+0:18:19.716,0:18:23.433
+Under that stubborn red reply,
+blue has 1,032 different moves.
+
+0:18:23.483,0:18:28.940
+To prove that blue cannot win there,
+we have to refute every one of them.
+
+0:18:28.990,0:18:31.413
+The 40 most promising
+are done; 992 are left.
+
+0:18:31.463,0:18:37.193
+Finishing them all would take my laptop
+anywhere from a few days to a few weeks.
+
+0:18:38.066,0:18:39.396
+Scale that up.
+
+0:18:39.446,0:18:42.025
+If the centre opening is a blue win,
+
+0:18:42.075,0:18:47.341
+proving it at the pace we measured is
+a job of a year or two on my laptop.
+
+0:18:47.391,0:18:50.741
+Proving the result of the
+whole game means doing that for
+
+0:18:50.791,0:18:55.725
+every one of red's 12 different
+first moves: a decade or more.
+
+0:18:55.775,0:18:59.892
+And if the true answer is
+a draw, it is worse still:
+
+0:18:59.942,0:19:02.715
+a draw has to be proven from both sides,
+
+0:19:02.765,0:19:05.996
+so the "all moves" levels
+appear for both players.
+
+0:19:07.050,0:19:11.852
+The deepest reason why this game is so
+hard to solve is the one we saw at move 76.
+
+0:19:11.902,0:19:16.492
+The solver is fast because good
+guesses let it skip almost everything.
+
+0:19:16.542,0:19:20.383
+In this line, the decisive move
+was one nobody would guess,
+
+0:19:20.433,0:19:24.485
+and nothing tells us it is the only
+place where the game hides one.
+
+0:19:24.535,0:19:29.528
+And that is exactly why we need to
+prove every single one of red's replies:
+
+0:19:29.578,0:19:34.840
+we never know where a move that is
+rated weak is actually the strongest.
+
+0:19:41.047,0:19:44.120
+So why did players feel that
+the first player cannot lose?
+
+0:19:44.170,0:19:47.477
+I think the answer is
+sitting right on the table.
+
+0:19:47.527,0:19:52.037
+The starting player takes the
+center, and has one more piece.
+
+0:19:52.150,0:19:55.798
+If both players simply build their
+own snakes as long as they can,
+
+0:19:55.848,0:19:57.904
+red wins by exactly one cell.
+
+0:19:57.954,0:20:04.705
+That is the game most people play at first,
+and in that game the feeling is correct.
+
+0:20:04.755,0:20:09.790
+Red also moves first and last, so it
+always seems to have the last word.
+
+0:20:10.034,0:20:14.207
+What the numbers show is a different
+game, one where blue blocks.
+
+0:20:14.257,0:20:16.555
+In the opening line we studied,
+
+0:20:16.605,0:20:20.394
+blue wins by force against 16 of
+the 17 red replies we finished,
+
+0:20:20.444,0:20:23.962
+usually with the very first
+move the engine suggests.
+
+0:20:24.012,0:20:29.238
+Against the 17th it is the other way
+round: blue is the one clinging on,
+
+0:20:29.288,0:20:32.974
+and in the line we followed only
+a move ranked 76th saved her.
+
+0:20:34.034,0:20:35.282
+So were the players wrong?
+
+0:20:35.332,0:20:37.369
+Not really.
+
+0:20:37.419,0:20:39.273
+A game is not its game tree.
+
+0:20:39.323,0:20:42.013
+A game is what people
+experience at the table,
+
+0:20:42.063,0:20:45.541
+and if a game feels decided,
+it is decided for them.
+
+0:20:45.591,0:20:50.388
+Theoretical balance means nothing when
+the balancing moves are invisible.
+
+0:20:50.438,0:20:52.514
+Let me say that again.
+
+0:20:52.564,0:20:56.694
+Theoretical balance means nothing when
+the balancing moves are invisible.
+
+0:21:00.317,0:21:05.485
+And just because a game is perfectly
+balanced, that does not guarantee it is fun.
+
+0:21:05.535,0:21:08.705
+What makes a game fun is a
+whole other big open question,
+
+0:21:08.925,0:21:12.397
+one that game designers have been
+trying to answer for decades.
+
+0:21:14.134,0:21:17.414
+And that leaves me with a question
+I find genuinely interesting.
+
+0:21:17.960,0:21:21.263
+Is a game where every result hangs
+on a single hidden cell a deep game,
+
+0:21:21.313,0:21:22.728
+or a frustrating one?
+
+0:21:22.778,0:21:27.655
+Perhaps it is both, depending on
+who is sitting across from you.
+
+0:21:27.705,0:21:29.983
+It almost feels like the
+game of Go in some ways:
+
+0:21:30.033,0:21:34.087
+you know there is an astronomical
+number of possible games,
+
+0:21:34.137,0:21:36.393
+and it could hypothetically be calculated.
+
+0:21:36.799,0:21:39.148
+But in the end, you
+must read your opponent,
+
+0:21:39.295,0:21:42.014
+trust your intuition,
+and feel the patterns.
+
+0:21:45.417,0:21:46.772
+So where does this leave us?
+
+0:21:46.822,0:21:48.977
+Three things I am now sure of.
+
+0:21:49.450,0:21:52.502
+For human players, the
+game is extremely tight.
+
+0:21:52.552,0:21:54.668
+Results swing on a single cell,
+
+0:21:54.718,0:21:58.620
+and the saving move can be one that
+even a strong engine ranks 76th.
+
+0:21:58.900,0:22:00.996
+An exact proof is extremely expensive.
+
+0:22:01.046,0:22:05.649
+Hundreds of hours of computing
+went into a single opening line,
+
+0:22:05.699,0:22:07.540
+and that line is still open.
+
+0:22:07.950,0:22:11.125
+It is not at all clear how the
+game ends with perfect play.
+
+0:22:11.175,0:22:16.410
+Blue looked like the favourite,
+until one red reply refused to fall.
+
+0:22:17.667,0:22:18.713
+Seven turns.
+
+0:22:18.763,0:22:20.124
+Ninety-one cells.
+
+0:22:20.174,0:22:22.907
+And still, nobody knows who wins.
+
+0:22:26.017,0:22:30.105
+If you want to play against the engine
+yourself, right in your browser,
+
+0:22:30.155,0:22:33.859
+or analyse any position, click
+the link in the description.
+
+0:22:33.909,0:22:36.067
+To buy the game, visit Maty Moves.
+
+0:22:36.117,0:22:38.332
+And maybe one of you will
+find the next move 76.
+
+0:22:38.382,0:22:40.557
+Thanks for watching.
+

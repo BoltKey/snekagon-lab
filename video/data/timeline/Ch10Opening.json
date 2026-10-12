@@ -1,0 +1,59 @@
+{
+ "scene": "Ch10Opening",
+ "beats": [
+  {
+   "key": "27b6101de7ebacac",
+   "text": "Solving the whole game at once was out of reach, so we picked one line and tried to prove it. Red opens in the centre. The engine’s favourite answer for blue is this four-piece at the top, which it rates at about 65 % for blue; the next best reply sits around 50 %. This was our first glimpse of a real result, and it goes straight against what players think: they say the first player wins, but it may very well be the other way around. It seemed that blue had the better chances, so we tried to actually prove that blue always wins with perfect play.",
+   "start": 0.5,
+   "duration": 37.439
+  },
+  {
+   "key": "f097fdf20ad2039f",
+   "text": "What does that take? Red has 1,589 genuinely different replies. For every single one of them we need one blue answer, and then a proof that every red follow-up loses. Each of those follow-ups is a position after five moves, a job one processor core can finish in a few minutes, or in a few hours.",
+   "start": 38.883,
+   "duration": 20.354
+  },
+  {
+   "key": "62778d0bc121b05f",
+   "text": "So I put my home laptop on it, working day and night.",
+   "start": 60.183,
+   "duration": 3.349
+  },
+  {
+   "key": "e2544fdc5821035e",
+   "text": "And it worked. Red reply after red reply fell, almost always to the very first blue answer the engine suggested. Sixteen replies proven in a week, each costing between 13 and 241 hours of computing, about 60 on average. That sounds like progress, until you do the division: sixteen out of 1,589 is one percent. At that pace, this one opening line would keep my laptop busy for a year or two.",
+   "start": 64.783,
+   "duration": 30.893
+  },
+  {
+   "key": "f5f920af0d430c20",
+   "text": "The toughest of the sixteen took 241 hours on its own. Red answers with a small bent three-piece that runs from the centre straight at blue’s snake, and blue answers in the top corner. Red grows its snake, and from there both sides play for every cell. Each of them builds a second snake. Then blue plays a straight four right down the middle, between red’s two snakes, and it joins blue’s own two snakes into one. Blue wins, 21 to 15.",
+   "start": 97.817,
+   "duration": 31.083
+  },
+  {
+   "key": "c074159c793578fe",
+   "text": "It started to look like blue actually wins. But then we hit this red reply. Red plays a small bent three-piece that runs its snake from the centre straight towards blue’s snake. The solver tried blue’s 40 most promising answers. All 40 failed. Not by guesswork: for each one, the solver found a red reply and proved that blue cannot win after it.",
+   "start": 133.267,
+   "duration": 22.648
+  },
+  {
+   "key": "0f654684dac902e2",
+   "text": "In 31 of the 40 cases, blue actually loses.",
+   "start": 156.25,
+   "duration": 3.63
+  },
+  {
+   "key": "030e76680e2b7561",
+   "text": "In the other 9, red’s reply holds blue to a draw.",
+   "start": 162.45,
+   "duration": 3.503
+  },
+  {
+   "key": "df265e6133833258",
+   "text": "That one red reply alone ate 282 hours of computing.",
+   "start": 169.05,
+   "duration": 4.876
+  }
+ ]
+}

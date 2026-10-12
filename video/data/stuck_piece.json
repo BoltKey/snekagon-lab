@@ -1,0 +1,348 @@
+[
+{
+"cells": [
+26,
+36,
+47,
+48
+],
+"reason": "a new snake may not touch other pieces",
+"show": [
+15,
+16,
+25,
+27,
+35,
+46,
+49,
+57,
+59
+]
+},
+{
+"cells": [
+32,
+42,
+53,
+54
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+42,
+32,
+41,
+52,
+53
+]
+},
+{
+"cells": [
+43,
+53,
+64,
+65
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+53,
+43,
+52,
+64
+]
+},
+{
+"cells": [
+53,
+63,
+74,
+75
+],
+"reason": "sharp turn: three red cells touching",
+"show": [
+53,
+52,
+63
+]
+},
+{
+"cells": [
+37,
+38,
+47,
+58
+],
+"reason": "a new snake may not touch other pieces",
+"show": [
+27,
+28,
+39,
+46,
+49,
+57,
+59,
+68
+]
+},
+{
+"cells": [
+53,
+54,
+63,
+74
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+53,
+54,
+52,
+63
+]
+},
+{
+"cells": [
+63,
+64,
+73,
+84
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+63,
+64,
+52,
+62,
+73
+]
+},
+{
+"cells": [
+73,
+74,
+83,
+94
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+73,
+74,
+62,
+72,
+83
+]
+},
+{
+"cells": [
+53,
+54,
+63,
+65
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+53,
+54,
+52,
+63
+]
+},
+{
+"cells": [
+63,
+64,
+73,
+75
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+63,
+64,
+52,
+62,
+73
+]
+},
+{
+"cells": [
+31,
+32,
+43,
+53
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+31,
+32,
+21,
+20,
+41
+]
+},
+{
+"cells": [
+36,
+37,
+48,
+58
+],
+"reason": "a new snake may not touch other pieces",
+"show": [
+25,
+27,
+35,
+46,
+49,
+57,
+59,
+68
+]
+},
+{
+"cells": [
+42,
+43,
+54,
+64
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+42,
+43,
+41,
+52
+]
+},
+{
+"cells": [
+53,
+54,
+65,
+75
+],
+"reason": "this red cell would get a third neighbour",
+"show": [
+52
+]
+},
+{
+"cells": [
+43,
+54,
+63,
+64
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+63,
+64,
+52,
+62
+]
+},
+{
+"cells": [
+53,
+64,
+73,
+74
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+73,
+74,
+62,
+72
+]
+},
+{
+"cells": [
+54,
+65,
+74,
+75
+],
+"reason": "a new snake may not touch other pieces",
+"show": [
+85
+]
+},
+{
+"cells": [
+63,
+74,
+83,
+84
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+63,
+52,
+62,
+74
+]
+},
+{
+"cells": [
+73,
+84,
+93,
+94
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+73,
+62,
+72,
+84
+]
+},
+{
+"cells": [
+36,
+38,
+47,
+48
+],
+"reason": "a new snake may not touch other pieces",
+"show": [
+25,
+27,
+28,
+35,
+39,
+46,
+49,
+57,
+59
+]
+},
+{
+"cells": [
+63,
+65,
+74,
+75
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+63,
+52,
+62,
+74
+]
+},
+{
+"cells": [
+99,
+101,
+110,
+111
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+99,
+89,
+88,
+110
+]
+}
+]

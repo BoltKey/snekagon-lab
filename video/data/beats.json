@@ -1,0 +1,494 @@
+[
+ {
+  "scene": "Ch01ColdOpen",
+  "key": "a5b0690bd40a4d58",
+  "text": "Here is a game you can explain in under a minute. Two players, one board, a handful of small pieces each.",
+  "tts": "audio_cache\\e85404f0b9e162d7.wav"
+ },
+ {
+  "scene": "Ch01ColdOpen",
+  "key": "705fb9040893d061",
+  "text": "You take turns placing them. Each turn, either start a new snake that doesn't touch any other pieces, or grow one of your snakes. Whoever ends up with the longest snake wins.",
+  "tts": "audio_cache\\bde8cadd8655bd16.wav"
+ },
+ {
+  "scene": "Ch01ColdOpen",
+  "key": "6165a6f7f6478e29",
+  "text": "Each player gets just seven real turns. The whole game fits on a coffee table and takes about 5 minutes.",
+  "tts": "audio_cache\\8b81b8faa7b16dcd.wav"
+ },
+ {
+  "scene": "Ch01ColdOpen",
+  "key": "9b66b1ba6d005f1b",
+  "text": "So here is the question that has been bugging me for years. If both players play perfectly, who wins? It feels like a question a computer should answer in an evening. This video is about why it did not, what we found when we tried anyway, and a move the engine had ranked only 76th. One move that seemed weak at first, but changed the whole picture.",
+  "tts": "audio_cache\\ba6735e66ff145c6.wav"
+ },
+ {
+  "scene": "Ch02WhoIAm",
+  "key": "28405a19e43fb98f",
+  "text": "Hi, I am Adam, a Czech game designer. You may know me for my games Project L or Drillers. But today, I would like to tell you about one of my earlier games, much less known, but no less interesting: Snekagon.",
+  "tts": "audio_cache\\752b4a2d3cfeac6e.wav"
+ },
+ {
+  "scene": "Ch02WhoIAm",
+  "key": "218c7e9592cd4f78",
+  "text": "This is a story about a game that didn't sell well, a story about a question I could not answer, a story about player psychology, and a story about the deep beauty and mystery of board games.",
+  "tts": "audio_cache\\84c6470a71f62380.wav"
+ },
+ {
+  "scene": "Ch03HowItStarted",
+  "key": "5b42cbdf75fec630",
+  "text": "The idea came out of thin air. I was riding home from a long, demanding game night back in 2019, and I wanted something completely elementary, as natural and simple as a game can get. Somewhere on that tram ride I caught it, and I did not let go.",
+  "tts": "audio_cache\\e129c7a87abd5fcb.wav"
+ },
+ {
+  "scene": "Ch03HowItStarted",
+  "key": "63609f8912366089",
+  "text": "The first games surprised me. The rules are tiny, but the board fills up fast, and every piece you place is a threat and a wall at the same time.",
+  "tts": "audio_cache\\d9cb14dd76cc5edb.wav"
+ },
+ {
+  "scene": "Ch03HowItStarted",
+  "key": "0c64122d92a0bd92",
+  "text": "After a playtest at CGE in February 2020, where it was played a few times, I wrote this in my diary: “This game keeps fascinating me. An area-control abstract that lasts eight moves? That can’t work. But it does. You can never calculate more than seven moves ahead, simply because there will never be that many moves left. It is about planning and intuition, and every game is different.”",
+  "tts": "audio_cache\\eba9baa772b8c75e.wav"
+ },
+ {
+  "scene": "Ch03HowItStarted",
+  "key": "d12e9b13644efc1f",
+  "text": "And the natural question followed: who wins? This game is small. Ninety-one cells, seven turns each. It has no dice, no cards, no hidden information. So somewhere out there is a definite answer: either the first player wins, or the second player wins, or perfect play ends in a tie. It really feels like a game that should be easy to solve.",
+  "tts": "audio_cache\\023d68025043c7be.wav"
+ },
+ {
+  "scene": "Ch04OutIntoTheWorld",
+  "key": "1d7ec63b1060a857",
+  "text": "I pitched the game around. In December 2019, Gigamic, the publisher of Quarto and Squadro, turned it down. The strategy part seemed a bit too light for them.",
+  "tts": "audio_cache\\b8691db8d0133ded.wav"
+ },
+ {
+  "scene": "Ch04OutIntoTheWorld",
+  "key": "1b157cfc0d32c228",
+  "text": "I tried to ask what they meant by that, or which winning strategies they found, but never heard back.",
+  "tts": "audio_cache\\5e16933ef8b51998.wav"
+ },
+ {
+  "scene": "Ch04OutIntoTheWorld",
+  "key": "cf9e76e4062d6f33",
+  "text": "In the end I published it with a small Czech publisher Maty Moves in 2020.",
+  "tts": "audio_cache\\fdcadd9a57bbe6a8.wav"
+ },
+ {
+  "scene": "Ch04OutIntoTheWorld",
+  "key": "8713ee63fe6798f6",
+  "text": "The reception was lukewarm, to put it kindly. And one comment kept coming back, in different words: the first player has an advantage you cannot beat.",
+  "tts": "audio_cache\\3c113715ec874dec.wav"
+ },
+ {
+  "scene": "Ch04OutIntoTheWorld",
+  "key": "93fb2039092b4092",
+  "text": "First player advantage seems to take the legs out from underneath this design.",
+  "tts": "audio_cache\\4741b99f9ea29d1f.wav"
+ },
+ {
+  "scene": "Ch04OutIntoTheWorld",
+  "key": "b4ca79c66d8af691",
+  "text": "Going first gave me a near-unbeatable advantage. Maybe if player one doesn't take the center space... but why wouldn't you? Still, no fun to feel like a bully.",
+  "tts": "audio_cache\\f7a98ce39c91425d.wav"
+ },
+ {
+  "scene": "Ch04OutIntoTheWorld",
+  "key": "5785302187e79809",
+  "text": "To be clear, this video is not here to prove anyone wrong. The game did not land well with players, and that's OK. I have no right to tell players how they are supposed to have fun playing board games.",
+  "tts": "audio_cache\\6b215ab69a7bb848.wav"
+ },
+ {
+  "scene": "Ch05Rules",
+  "key": "98b1beec0a02c344",
+  "text": "The board is a hexagon of 91 cells. Each player has a set of pieces made of hexes: a domino, two shapes of three, and four shapes of four.",
+  "tts": "audio_cache\\a5a838c894923c6d.wav"
+ },
+ {
+  "scene": "Ch05Rules",
+  "key": "b31665202995e362",
+  "text": "The first player, red, also gets this: a single hex. Red places it anywhere to start the game. It is such a tiny move that it does not really count as a turn, which is why we say each player then gets seven turns.",
+  "tts": "audio_cache\\4f00ecd49a5c3aaa.wav"
+ },
+ {
+  "scene": "Ch05Rules",
+  "key": "20de31fe61f3a0d5",
+  "text": "So red owns 25 cells of material and blue owns 24. Remember that difference; the players certainly did.",
+  "tts": "audio_cache\\f5339e2c442a7857.wav"
+ },
+ {
+  "scene": "Ch05Rules",
+  "key": "ac5c4e719557c64a",
+  "text": "On your turn you place one of your pieces, and there are exactly two ways to do it.",
+  "tts": "audio_cache\\2cb4b5d16762fdaa.wav"
+ },
+ {
+  "scene": "Ch05Rules",
+  "key": "c3217e81883369f0",
+  "text": "One: start a new snake. Then the piece must not touch any other piece at all, of either colour.",
+  "tts": "audio_cache\\ec1676d396c38d8f.wav"
+ },
+ {
+  "scene": "Ch05Rules",
+  "key": "b6957d3c5fa0647f",
+  "text": "Two: grow. The piece touches at least one of your own pieces. It is allowed to touch the opponent as well, and it may join two of your snakes together.",
+  "tts": "audio_cache\\eae54c4af4d30a64.wav"
+ },
+ {
+  "scene": "Ch05Rules",
+  "key": "fce9131a2c29ce30",
+  "text": "Whatever you do, your cells must stay snake-shaped: no cell may have more than two of your own neighbours, and three of your cells may never all touch each other. No branches, no blobs, no sharp turns. Every group of your cells is a path, or a closed ring.",
+  "tts": "audio_cache\\7a91b5deb5f6836a.wav"
+ },
+ {
+  "scene": "Ch05Rules",
+  "key": "1750a3a2f684f27c",
+  "text": "If you cannot place anything, you pass. When neither player can move, the game ends. You measure your longest snake in cells, and the longer snake wins. Equal lengths are a tie.",
+  "tts": "audio_cache\\c1256ef4e6f945e6.wav"
+ },
+ {
+  "scene": "Ch05Rules",
+  "key": "701ba76b833c6f31",
+  "text": "That's the whole rulebook.",
+  "tts": "audio_cache\\e30933706801c476.wav"
+ },
+ {
+  "scene": "Ch06HowItIsPlayed",
+  "key": "fce9d73962c832c8",
+  "text": "The rules are short, but they hide a surprising amount of play. Three ideas carry most of it, and all three show up in the game we just watched.",
+  "tts": "audio_cache\\3ccb2373a8a49fe4.wav"
+ },
+ {
+  "scene": "Ch06HowItIsPlayed",
+  "key": "995f79dbd3e67207",
+  "text": "The most direct weapon is a wall. Red has just started a second snake. Blue answers with a U-shaped piece right against one of its ends, and that end is dead: there is nowhere left for it to grow.",
+  "tts": "audio_cache\\4d9007ba415f728f.wav"
+ },
+ {
+  "scene": "Ch06HowItIsPlayed",
+  "key": "726bc78f403ca08d",
+  "text": "Starting a new snake looks like a wasted move, because it adds nothing to your longest snake. But it can be an investment. Red’s second snake started far away from its first, and on move nine a single two-piece joins the two: seven cells become fourteen in one move.",
+  "tts": "audio_cache\\ffcc9bebb6af2074.wav"
+ },
+ {
+  "scene": "Ch06HowItIsPlayed",
+  "key": "bb056bd1066eaaf0",
+  "text": "Walls also work the other way round. The cells right next to the middle of a snake are lost for its owner, since a piece there would give a body cell a third neighbour, but for the opponent they are perfectly good: reserved, to be used whenever needed. In this game, two cells beside red’s snake, up in the corner, belong to blue from now on, and blue’s very last piece goes straight into them. As the board fills, these dead cells spread and split the free space into pockets. Late in the game the question is not how many pieces you have, but how many cells you can still reach.",
+  "tts": "audio_cache\\bb624f52c9423e3f.wav"
+ },
+ {
+  "scene": "Ch07Question",
+  "key": "08d5b38951f3c66f",
+  "text": "Throughout the years, I focused on other projects at CGE: joining the Arnak team for all the expansions, working on SETI and its expansion, and more. But this game stayed in the back of my mind all those years.",
+  "tts": "audio_cache\\9d95046f2ccedb60.wav"
+ },
+ {
+  "scene": "Ch07Question",
+  "key": "3949a6a08045185c",
+  "text": "Snekagon is just seven turns on a fairly small board. It looks like a game that can be solved easily. I gave it a few shots, and always failed. I tried some basic minimax search algorithms that I had a general idea about, but that was just not enough to tackle this, and long discussions with strong players of abstract games did not crack it either. At that point, I knew this would be quite a problem to solve.",
+  "tts": "audio_cache\\c3dd3c56dae6e261.wav"
+ },
+ {
+  "scene": "Ch07Question",
+  "key": "9c1ae5e5603c7dd0",
+  "text": "Meanwhile, the advent of large language models was unfolding. Of course I asked them to solve the game, and none of them could. Then Opus 5.5 came out, and I decided to try one more time. Not by asking for the answer, but by asking it to build the tools to find one.",
+  "tts": "audio_cache\\e06c527e90826a38.wav"
+ },
+ {
+  "scene": "Ch08Engine",
+  "key": "7117093f8a0861e0",
+  "text": "The first step was not solving the game. It was getting a program that plays it well. In the first session we had a fast rules engine, a web board to play on, and a first opponent.",
+  "tts": "audio_cache\\bcfe17bfb2b91e62.wav"
+ },
+ {
+  "scene": "Ch08Engine",
+  "key": "693b71ba576eb3b0",
+  "text": "That first opponent used Monte Carlo tree search. It plays thousands of random games from each position and prefers moves that tend to win. It sounds clever, but I beat it comfortably as blue. Random games simply do not understand walls: out of two thousand legal moves, often only a handful really matter, usually walls, and random games cannot tell them apart from the rest. It let itself get boxed in again and again. It turned out that the tree is simply too wide for Monte Carlo to be effective.",
+  "tts": "audio_cache\\54d00fe1ea2868e0.wav"
+ },
+ {
+  "scene": "Ch08Engine",
+  "key": "75839f11dae66ccd",
+  "text": "The second engine looked ahead properly, with alpha-beta search, but judged positions with a hand-made rule, and it did even worse: it lost to the random games, 2 to 10.",
+  "tts": "audio_cache\\e199031290706cf0.wav"
+ },
+ {
+  "scene": "Ch08Engine",
+  "key": "f61c702ecf25a507",
+  "text": "So instead of guessing what matters, we let the game tell us. The exact solver, which we will meet in a moment, can settle positions late in the game. We solved tens of thousands of such positions and fitted a simple model, a logistic regression over 13 features of the position, to predict who wins. The features are simple things: the length of each player’s longest snake, how many snake ends can still grow,  who reaches which empty cells first, or how many separate snakes each player has. With that learned judgement the engine beat the random-playout engine 16 games to 0, and it beats me comfortably every time.",
+  "tts": "audio_cache\\52d040d47f163526.wav"
+ },
+ {
+  "scene": "Ch09Solving",
+  "key": "92a981aefe374530",
+  "text": "Playing well is one thing. Solving means something much stronger: proving the result of perfect play, with no guessing anywhere.",
+  "tts": "audio_cache\\6c775b3f2ec8b601.wav"
+ },
+ {
+  "scene": "Ch09Solving",
+  "key": "914584dcd0dfdb56",
+  "text": "How big is the tree? First, the cheap trick. The board looks the same after six rotations and a mirror, so up to twelve positions are really one. That leaves red just 12 truly different cells for the 1-hex, and after the centre opening, blue has 172 truly different replies instead of 2,132. But symmetry only helps at the very start. A few moves in, positions are almost never symmetric, and the numbers keep coming: around 1,600 replies for red, around 900 for blue after that. They shrink as the board fills, but they multiply. Even counting rotated and mirrored games as one, sampling random games suggests something like 10^29 different ways a game can unfold. You have no chance to look at them all.",
+  "tts": "audio_cache\\4df72bfe6b8192ac.wav"
+ },
+ {
+  "scene": "Ch09Solving",
+  "key": "a585d7c8e1e5509f",
+  "text": "So the solver has to be clever about which parts it never looks at. Four tricks do almost all of the work.",
+  "tts": "audio_cache\\d3befefb29598d45.wav"
+ },
+ {
+  "scene": "Ch09Solving",
+  "key": "4322309422cdee7d",
+  "text": "One, speed. The whole board fits into a single 128-bit number, one bit per cell. Every position the solver meets becomes a pair of such numbers, one for red and one for blue. Finding all the neighbours of a snake is a handful of bit shifts, and the legality of a piece in every possible spot is checked at once.",
+  "tts": "audio_cache\\a3bb6b8fbc3f5c28.wav"
+ },
+ {
+  "scene": "Ch09Solving",
+  "key": "0e39aaa925ef2244",
+  "text": "Two, memory. Different move orders often reach the same position, so every result is stored and reused.",
+  "tts": "audio_cache\\745ad88ef4b2a881.wav"
+ },
+ {
+  "scene": "Ch09Solving",
+  "key": "385f95ed640be9e0",
+  "text": "Three, bounds. This one is specific to Snekagon. A snake never gets shorter, so its current length is a sure lower bound. And we can compute a sure upper bound: the cells a player can still reach, filled with the pieces they still have. If blue is already guaranteed more than red could ever get, the game is over, even with pieces left to play.",
+  "tts": "audio_cache\\88a525d280431b4d.wav"
+ },
+ {
+  "scene": "Ch09Solving",
+  "key": "edc3b7bbd8da99ab",
+  "text": "Four, order. The solver only needs one winning move to prove a win, so it tries the most promising moves first, ranked by the same learned judgement that powers the engine.",
+  "tts": "audio_cache\\3f4b02102c3a01c9.wav"
+ },
+ {
+  "scene": "Ch09Solving",
+  "key": "642d3fae5102a26b",
+  "text": "With all of that, the first real test: a position after four moves. The solver checked every one of red’s 956 distinct moves, 11 billion positions in total, and proved that red loses after each of them. That took about ten hours of single-core computing. For one position, four moves into a fifteen-move game.",
+  "tts": "audio_cache\\53d709fa36f1e1c3.wav"
+ },
+ {
+  "scene": "Ch10Opening",
+  "key": "27b6101de7ebacac",
+  "text": "Solving the whole game at once was out of reach, so we picked one line and tried to prove it. Red opens in the centre. The engine’s favourite answer for blue is this four-piece at the top, which it rates at about 65 % for blue; the next best reply sits around 50 %. This was our first glimpse of a real result, and it goes straight against what players think: they say the first player wins, but it may very well be the other way around. It seemed that blue had the better chances, so we tried to actually prove that blue always wins with perfect play.",
+  "tts": "audio_cache\\e1c7690567f97825.wav"
+ },
+ {
+  "scene": "Ch10Opening",
+  "key": "f097fdf20ad2039f",
+  "text": "What does that take? Red has 1,589 genuinely different replies. For every single one of them we need one blue answer, and then a proof that every red follow-up loses. Each of those follow-ups is a position after five moves, a job one processor core can finish in a few minutes, or in a few hours.",
+  "tts": "audio_cache\\a0425d693339ae98.wav"
+ },
+ {
+  "scene": "Ch10Opening",
+  "key": "62778d0bc121b05f",
+  "text": "So I put my home laptop on it, working day and night.",
+  "tts": "audio_cache\\11d429cd907c8b97.wav"
+ },
+ {
+  "scene": "Ch10Opening",
+  "key": "e2544fdc5821035e",
+  "text": "And it worked. Red reply after red reply fell, almost always to the very first blue answer the engine suggested. Sixteen replies proven in a week, each costing between 13 and 241 hours of computing, about 60 on average. That sounds like progress, until you do the division: sixteen out of 1,589 is one percent. At that pace, this one opening line would keep my laptop busy for a year or two.",
+  "tts": "audio_cache\\cceae982198edc53.wav"
+ },
+ {
+  "scene": "Ch10Opening",
+  "key": "f5f920af0d430c20",
+  "text": "The toughest of the sixteen took 241 hours on its own. Red answers with a small bent three-piece that runs from the centre straight at blue’s snake, and blue answers in the top corner. Red grows its snake, and from there both sides play for every cell. Each of them builds a second snake. Then blue plays a straight four right down the middle, between red’s two snakes, and it joins blue’s own two snakes into one. Blue wins, 21 to 15.",
+  "tts": "audio_cache\\5fab1c6d85cbebef.wav"
+ },
+ {
+  "scene": "Ch10Opening",
+  "key": "c074159c793578fe",
+  "text": "It started to look like blue actually wins. But then we hit this red reply. Red plays a small bent three-piece that runs its snake from the centre straight towards blue’s snake. The solver tried blue’s 40 most promising answers. All 40 failed. Not by guesswork: for each one, the solver found a red reply and proved that blue cannot win after it.",
+  "tts": "audio_cache\\e2c129e7fa3fd738.wav"
+ },
+ {
+  "scene": "Ch10Opening",
+  "key": "0f654684dac902e2",
+  "text": "In 31 of the 40 cases, blue actually loses.",
+  "tts": "audio_cache\\c4cb97125d38aa40.wav"
+ },
+ {
+  "scene": "Ch10Opening",
+  "key": "030e76680e2b7561",
+  "text": "In the other 9, red’s reply holds blue to a draw.",
+  "tts": "audio_cache\\09bf6af56816629d.wav"
+ },
+ {
+  "scene": "Ch10Opening",
+  "key": "df265e6133833258",
+  "text": "That one red reply alone ate 282 hours of computing.",
+  "tts": "audio_cache\\72f8407f5f597775.wav"
+ },
+ {
+  "scene": "Ch11Move76",
+  "key": "4a60e15d2b1d32f7",
+  "text": "Let’s look at the very first answer blue tried, because it is the most natural one. Blue wraps a U around red’s starting hex. The centre end of red’s snake is dead.",
+  "tts": "audio_cache\\d3277ce44ace3640.wav"
+ },
+ {
+  "scene": "Ch11Move76",
+  "key": "86a22de6736c0973",
+  "text": "Red answers by growing from the other end, and the solver proves that this position is exactly a draw. With perfect play from here, neither side can force a win.",
+  "tts": "audio_cache\\df9a683a60d1395e.wav"
+ },
+ {
+  "scene": "Ch11Move76",
+  "key": "67163db14e54d7d4",
+  "text": "Red’s answer is quietly brutal. Red now has these spaces reserved. Red has a free road into the bottom of the board. The natural answer is to wall it off, right under red’s two cells, and the engine rates that highly too. But red simply turns the other way and flows around the wall to the left, and blue loses, 15 to 16.",
+  "tts": "audio_cache\\c3833029e7abe60e.wav"
+ },
+ {
+  "scene": "Ch11Move76",
+  "key": "a8aee8a0b6b01f52",
+  "text": "So here is a challenge for you. Pause the video right here, and try to find a move for blue that does not lose, or at least one that feels strong. Ready?",
+  "tts": "audio_cache\\0501c66ffb0a6004.wav"
+ },
+ {
+  "scene": "Ch11Move76",
+  "key": "671e4e22d9dc2d71",
+  "text": "Three.",
+  "tts": "audio_cache\\2074a3d3b5f3c4aa.wav"
+ },
+ {
+  "scene": "Ch11Move76",
+  "key": "55691f90515f1072",
+  "text": "Two.",
+  "tts": "audio_cache\\1fa81b208a681f25.wav"
+ },
+ {
+  "scene": "Ch11Move76",
+  "key": "194d30aed0d3bdc5",
+  "text": "One.",
+  "tts": "audio_cache\\4c0d88bf6f713c69.wav"
+ },
+ {
+  "scene": "Ch11Move76",
+  "key": "fd219dd3f1962be9",
+  "text": "Here it is. Did you get it? If not, don’t feel bad. The engine, which beats most humans comfortably, ranked this move only 76th, and all 75 moves it liked better lose.",
+  "tts": "audio_cache\\a1acbd0e6249c0ef.wav"
+ },
+ {
+  "scene": "Ch11Move76",
+  "key": "47bcf334c79968e4",
+  "text": "And here is why the 76th works. Blue starts its second snake not in the open space at the bottom, but on the left, close enough to the top end of its first snake that a single three-piece can join them. Red, though, still threatens to grow into the bottom of the board. Red does flow into its two cells and cuts one end of the new snake off. Blue’s next piece, an L at the bottom, looks almost random, but it is not. Of blue’s 159 possible moves here, only 21 keep the draw, and every single one of them goes into the bottom of the board: blue has to claim that space before red does. Then blue’s three-piece joins the two snakes: eight cells become fifteen.",
+  "tts": "audio_cache\\f7bad7bad37bd8d9.wav"
+ },
+ {
+  "scene": "Ch11Move76",
+  "key": "cb618a18b46c0340",
+  "text": "From there, the game ends in a draw, seventeen to seventeen.",
+  "tts": "audio_cache\\91d908269afed39b.wav"
+ },
+ {
+  "scene": "Ch11Move76",
+  "key": "8f86f17d06bdb099",
+  "text": "Think about what that means for a human player. The move that saves the game is one that a strong engine ranks 76th. A person sitting at the table would almost never find it, and would never know it was there.",
+  "tts": "audio_cache\\a219d80e4cbc7ad9.wav"
+ },
+ {
+  "scene": "Ch12WhyHard",
+  "key": "f0f8ca4ce245eac3",
+  "text": "So, why is it so hard to prove? A proof of a win has a lopsided shape, and that shape is the whole problem.",
+  "tts": "audio_cache\\f7bae11d0b7af9b8.wav"
+ },
+ {
+  "scene": "Ch12WhyHard",
+  "key": "7734761445a423f4",
+  "text": "To prove that blue wins, blue needs just one good move at each of her turns. But she has to answer every single move red could make. One branch, then all branches, then one, then all. The “one” levels are cheap if you guess right. The “all” levels never are.",
+  "tts": "audio_cache\\8fba49b2afba8e17.wav"
+ },
+ {
+  "scene": "Ch12WhyHard",
+  "key": "9f988c18bfb58f83",
+  "text": "And guessing right is exactly what failed us. Under that stubborn red reply, blue has 1,032 different moves. To prove that blue cannot win there, we have to refute every one of them. The 40 most promising are done; 992 are left. Finishing them all would take my laptop anywhere from a few days to a few weeks.",
+  "tts": "audio_cache\\d53836a916c5ca13.wav"
+ },
+ {
+  "scene": "Ch12WhyHard",
+  "key": "61b4dba9577ab6f4",
+  "text": "Scale that up. If the centre opening is a blue win, proving it at the pace we measured is a job of a year or two on my laptop. Proving the result of the whole game means doing that for every one of red’s 12 different first moves: a decade or more. And if the true answer is a draw, it is worse still: a draw has to be proven from both sides, so the “all moves” levels appear for both players.",
+  "tts": "audio_cache\\8bcc71663b54fdc1.wav"
+ },
+ {
+  "scene": "Ch12WhyHard",
+  "key": "cf14c1e88f3d03ce",
+  "text": "The deepest reason why this game is so hard to solve is the one we saw at move 76. The solver is fast because good guesses let it skip almost everything. In this line, the decisive move was one nobody would guess, and nothing tells us it is the only place where the game hides one. And that is exactly why we need to prove every single one of red’s replies: we never know where a move that is rated weak is actually the strongest.",
+  "tts": "audio_cache\\6e7eb5697c4717e7.wav"
+ },
+ {
+  "scene": "Ch13Interlude",
+  "key": "9471e61d7f1fd8d9",
+  "text": "So why did players feel that the first player cannot lose? I think the answer is sitting right on the table. The starting player takes the center, and has one more piece.",
+  "tts": "audio_cache\\27da962b13e19e17.wav"
+ },
+ {
+  "scene": "Ch13Interlude",
+  "key": "5f41c69aba19c246",
+  "text": "If both players simply build their own snakes as long as they can, red wins by exactly one cell. That is the game most people play at first, and in that game the feeling is correct. Red also moves first and last, so it always seems to have the last word.",
+  "tts": "audio_cache\\eeaa2cf591a68f75.wav"
+ },
+ {
+  "scene": "Ch13Interlude",
+  "key": "71c0c99d8372464e",
+  "text": "What the numbers show is a different game, one where blue blocks. In the opening line we studied, blue wins by force against 16 of the 17 red replies we finished, usually with the very first move the engine suggests. Against the 17th it is the other way round: blue is the one clinging on, and in the line we followed only a move ranked 76th saved her.",
+  "tts": "audio_cache\\0af1011dde704a24.wav"
+ },
+ {
+  "scene": "Ch13Interlude",
+  "key": "aa7c4ad870731c0d",
+  "text": "So were the players wrong? Not really. A game is not its game tree. A game is what people experience at the table, and if a game feels decided, it is decided for them. Theoretical balance means nothing when the balancing moves are invisible. Let me say that again. Theoretical balance means nothing when the balancing moves are invisible.",
+  "tts": "audio_cache\\04e4858a2b2d3f0e.wav"
+ },
+ {
+  "scene": "Ch13Interlude",
+  "key": "93d5e6be7498ccc2",
+  "text": "And just because a game is perfectly balanced, that does not guarantee it is fun. What makes a game fun is a whole other big open question, one that game designers have been trying to answer for decades.",
+  "tts": "audio_cache\\77b9c80ca577d718.wav"
+ },
+ {
+  "scene": "Ch13Interlude",
+  "key": "bf0af8b6faa98022",
+  "text": "And that leaves me with a question I find genuinely interesting. Is a game where every result hangs on a single hidden cell a deep game, or a frustrating one? Perhaps it is both, depending on who is sitting across from you. It almost feels like the game of Go in some ways: you know there is an astronomical number of possible games, and it could hypothetically be calculated. But in the end, you must read your opponent, trust your intuition, and feel the patterns.",
+  "tts": "audio_cache\\2524b9b933ba97d8.wav"
+ },
+ {
+  "scene": "Ch14WhatWeKnow",
+  "key": "59f9162974f506a7",
+  "text": "So where does this leave us? Three things I am now sure of.",
+  "tts": "audio_cache\\ed9aaa33516c4039.wav"
+ },
+ {
+  "scene": "Ch14WhatWeKnow",
+  "key": "7eacec16e9691302",
+  "text": "For human players, the game is extremely tight. Results swing on a single cell, and the saving move can be one that even a strong engine ranks 76th.",
+  "tts": "audio_cache\\bd27054c79a95fd7.wav"
+ },
+ {
+  "scene": "Ch14WhatWeKnow",
+  "key": "71d64162c8a095bc",
+  "text": "An exact proof is extremely expensive. Hundreds of hours of computing went into a single opening line, and that line is still open.",
+  "tts": "audio_cache\\8f18d656491e8a11.wav"
+ },
+ {
+  "scene": "Ch14WhatWeKnow",
+  "key": "2574f18cc249d10f",
+  "text": "It is not at all clear how the game ends with perfect play. Blue looked like the favourite, until one red reply refused to fall.",
+  "tts": "audio_cache\\20fa484b1e67c4d1.wav"
+ },
+ {
+  "scene": "Ch14WhatWeKnow",
+  "key": "9f1cffa93d4d35a5",
+  "text": "Seven turns. Ninety-one cells. And still, nobody knows who wins.",
+  "tts": "audio_cache\\cc44426b76ec121f.wav"
+ },
+ {
+  "scene": "Ch14WhatWeKnow",
+  "key": "bbd3d3851867594f",
+  "text": "If you want to play against the engine yourself, right in your browser, or analyse any position, click the link in the description. To buy the game, visit Maty Moves. And maybe one of you will find the next move 76. Thanks for watching.",
+  "tts": "audio_cache\\798a1b8c75b7423a.wav"
+ }
+]

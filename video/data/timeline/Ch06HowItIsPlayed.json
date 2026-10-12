@@ -1,0 +1,29 @@
+{
+ "scene": "Ch06HowItIsPlayed",
+ "beats": [
+  {
+   "key": "fce9d73962c832c8",
+   "text": "The rules are short, but they hide a surprising amount of play. Three ideas carry most of it, and all three show up in the game we just watched.",
+   "start": 0.5,
+   "duration": 9.293
+  },
+  {
+   "key": "995f79dbd3e67207",
+   "text": "The most direct weapon is a wall. Red has just started a second snake. Blue answers with a U-shaped piece right against one of its ends, and that end is dead: there is nowhere left for it to grow.",
+   "start": 12.333,
+   "duration": 13.477
+  },
+  {
+   "key": "726bc78f403ca08d",
+   "text": "Starting a new snake looks like a wasted move, because it adds nothing to your longest snake. But it can be an investment. Red’s second snake started far away from its first, and on move nine a single two-piece joins the two: seven cells become fourteen in one move.",
+   "start": 26.15,
+   "duration": 19.979
+  },
+  {
+   "key": "bb056bd1066eaaf0",
+   "text": "Walls also work the other way round. The cells right next to the middle of a snake are lost for its owner, since a piece there would give a body cell a third neighbour, but for the opponent they are perfectly good: reserved, to be used whenever needed. In this game, two cells beside red’s snake, up in the corner, belong to blue from now on, and blue’s very last piece goes straight into them. As the board fills, these dead cells spread and split the free space into pockets. Late in the game the question is not how many pieces you have, but how many cells you can still reach.",
+   "start": 46.467,
+   "duration": 35.822
+  }
+ ]
+}

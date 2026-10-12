@@ -1,0 +1,59 @@
+{
+ "scene": "Ch05Rules",
+ "beats": [
+  {
+   "key": "98b1beec0a02c344",
+   "text": "The board is a hexagon of 91 cells. Each player has a set of pieces made of hexes: a domino, two shapes of three, and four shapes of four.",
+   "start": 3.9,
+   "duration": 10.89
+  },
+  {
+   "key": "b31665202995e362",
+   "text": "The first player, red, also gets this: a single hex. Red places it anywhere to start the game. It is such a tiny move that it does not really count as a turn, which is why we say each player then gets seven turns.",
+   "start": 15.133,
+   "duration": 14.993
+  },
+  {
+   "key": "20de31fe61f3a0d5",
+   "text": "So red owns 25 cells of material and blue owns 24. Remember that difference; the players certainly did.",
+   "start": 30.467,
+   "duration": 7.88
+  },
+  {
+   "key": "ac5c4e719557c64a",
+   "text": "On your turn you place one of your pieces, and there are exactly two ways to do it.",
+   "start": 38.683,
+   "duration": 5.003
+  },
+  {
+   "key": "c3217e81883369f0",
+   "text": "One: start a new snake. Then the piece must not touch any other piece at all, of either colour.",
+   "start": 44.033,
+   "duration": 6.866
+  },
+  {
+   "key": "b6957d3c5fa0647f",
+   "text": "Two: grow. The piece touches at least one of your own pieces. It is allowed to touch the opponent as well, and it may join two of your snakes together.",
+   "start": 51.233,
+   "duration": 9.68
+  },
+  {
+   "key": "fce9131a2c29ce30",
+   "text": "Whatever you do, your cells must stay snake-shaped: no cell may have more than two of your own neighbours, and three of your cells may never all touch each other. No branches, no blobs, no sharp turns. Every group of your cells is a path, or a closed ring.",
+   "start": 61.25,
+   "duration": 18.744
+  },
+  {
+   "key": "1750a3a2f684f27c",
+   "text": "If you cannot place anything, you pass. When neither player can move, the game ends. You measure your longest snake in cells, and the longer snake wins. Equal lengths are a tie.",
+   "start": 80.333,
+   "duration": 11.996
+  },
+  {
+   "key": "701ba76b833c6f31",
+   "text": "That's the whole rulebook.",
+   "start": 92.667,
+   "duration": 1.618
+  }
+ ]
+}

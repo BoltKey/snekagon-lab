@@ -1,0 +1,38 @@
+START 1:60 4B:16,27,28,39 4A:18,29,40,50 4A:6,7,8,19  (red to move, blue proven to win)
+    bonus 1  tried 12  values [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  95.9s
+    bonus 1  tried 24  values [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  8.6s
+    bonus 1  tried 36  values [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  25.0s
+    bonus 1  tried 48  values [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  10.3s
+    bonus 2  tried 12  values [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  111.2s
+    bonus 2  tried 24  values [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  54.7s
+    bonus 2  tried 36  values [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  174.1s
+    bonus 2  tried 48  values [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  48.3s
+    bonus 3  tried 12  values [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  143.3s
+    bonus 3  tried 24  values [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  26.2s
+    bonus 3  tried 36  values [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  446.2s
+    bonus 3  tried 48  values [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  77.7s
+    bonus 4  tried 12  values [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  506.7s
+    bonus 4  tried 24  values [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  234.6s
+    bonus 4  tried 36  values [1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1]  312.9s
+PLY 5 red 4C:56,66,77,78  -> blue wins by 4
+    bonus 3  tried 12  values [1, 1, 1, 1, 1, -1, 1, -1, 0, 1, 1, 1]  162.6s
+PLY 6 blue 4C:20,21,32,42
+    bonus 4  tried 12  values [1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1]  2.0s
+PLY 7 red 4I:89,90,91,92
+    bonus 3  tried 12  values [1, 1, 0, -1, -1, 1, 1, 1, 1, 1, 1, 1]  0.6s
+PLY 8 blue 3V:48,49,58
+    bonus 4  tried 12  values [1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1]  0.3s
+PLY 9 red 3I:37,47,57
+    bonus 3  tried 12  values [-1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1]  0.3s
+PLY 10 blue 4I:69,70,71,72
+    bonus 4  tried 12  values [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  0.2s
+PLY 11 red 4B:73,74,82,83
+    bonus 3  tried 12  values [-1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  0.3s
+PLY 12 blue 3I:53,64,75
+    bonus 4  tried 12  values [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]  0.3s
+PLY 13 red 2:85,95
+    bonus 3  tried 9  values [-1, 1, 1, 1, 1, 1, 1, 1, 1]  0.3s
+PLY 14 blue 2:51,62
+    bonus 4  tried 5  values [1, 0, 0, 0, 0]  0.2s
+PLY 15 red 3V:105,114,115
+DONE margin 4: 1:60 4B:16,27,28,39 4A:18,29,40,50 4A:6,7,8,19 4C:56,66,77,78 4C:20,21,32,42 4I:89,90,91,92 3V:48,49,58 3I:37,47,57 4I:69,70,71,72 4B:73,74,82,83 3I:53,64,75 2:85,95 2:51,62 3V:105,114,115

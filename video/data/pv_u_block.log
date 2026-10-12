@@ -1,0 +1,151 @@
+  ply 5 try 4A:91,102,103,104  child value  1
+  ply 5 try 4I:101,102,103,104 child value  1
+  ply 5 try 4A:94,102,103,104  child value  1
+  ply 5 try 3I:102,103,104     child value  1
+  batch 3.1s
+  ply 5 try 4A:102,103,104,112 child value  1
+  ply 5 try 4A:104,112,113,114 child value  1
+  ply 5 try 4I:102,103,104,105 child value  1
+  ply 5 try 4A:89,90,91,102    child value  1
+  batch 3.5s
+  ply 5 try 4A:90,91,102,113   child value  1
+  ply 5 try 4A:94,104,113,114  child value  1
+  ply 5 try 3V:90,91,102       child value  1
+  ply 5 try 4A:90,101,102,103  child value  1
+  batch 2.4s
+  ply 5 try 3V:103,104,113     child value  1
+  ply 5 try 4A:105,113,114,115 child value  1
+  ply 5 try 4A:79,90,101,102   child value  1
+  ply 5 try 4A:78,79,90,101    child value  1
+  batch 1.7s
+  ply 5 try 3V:104,113,114     child value  1
+  ply 5 try 4A:67,68,79,90     child value  1
+  ply 5 try 4A:90,101,112,113  child value  1
+  ply 5 try 4I:68,79,90,101    child value  1
+  batch 4.2s
+  ply 5 try 4A:103,104,105,113 child value  1
+  ply 5 try 2:103,104          child value  1
+  ply 5 try 4I:57,68,79,90     child value  1
+  ply 5 try 3V:78,79,90        child value  1
+  batch 6.9s
+  ply 5 try 2:90,101           child value  1
+  ply 5 try 3I:79,90,101       child value  1
+  ply 5 try 4A:66,77,88,89     child value  1
+  ply 5 try 2:78,89            child value  1
+  batch 3.6s
+  ply 5 try 4I:79,90,101,112   child value  1
+  ply 5 try 2:89,90            child value  1
+  ply 5 try 3V:90,101,102      child value  1
+  ply 5 try 4A:95,103,104,105  child value  1
+  batch 2.2s
+  ply 5 try 2:78,79            child value  1
+  ply 5 try 4A:89,100,101,102  child value  1
+  ply 5 try 2:89,100           child value  1
+  ply 5 try 2:79,89            child value  1
+  batch 1.0s
+  ply 5 try 3V:77,88,89        child value  1
+  ply 5 try 4A:57,68,79,89     child value  1
+  ply 5 try 2:79,90            child value  1
+  ply 5 try 3I:68,79,90        child value  1
+  batch 4.5s
+  ply 5 try 3V:89,90,101       child value  1
+  ply 5 try 3V:94,103,104      child value  1
+  ply 5 try 4A:84,94,103,104   child value  1
+  ply 5 try 4I:100,101,102,103 child value  1
+  batch 3.7s
+  ply 5 try 2:90,100           child value  1
+  ply 5 try 4A:68,79,90,100    child value  1
+  ply 5 try 4A:78,88,99,110    child value  1
+  ply 5 try 4A:89,90,101,112   child value  1
+  batch 1.9s
+  ply 5 try 2:67,78            child value  1
+  ply 5 try 3V:67,68,79        child value  1
+  ply 5 try 2:90,91            child value  1
+  ply 5 try 4A:91,102,113,114  child value  1
+  batch 1.8s
+  ply 5 try 2:77,78            child value  1
+  ply 5 try 2:68,78            child value  1
+  ply 5 try 4A:101,102,103,114 child value  1
+  ply 5 try 2:88,89            child value  1
+  batch 1.3s
+  ply 5 try 3V:68,79,89        child value  1
+  ply 5 try 4A:55,66,77,78     child value  1
+  ply 5 try 3I:90,101,112      child value  1
+  ply 5 try 2:78,88            child value  1
+  batch 2.7s
+  ply 5 try 3V:66,77,78        child value  1
+  ply 5 try 3V:79,90,100       child value  1
+  ply 5 try 4A:89,100,111,112  child value  1
+  ply 5 try 4A:88,99,110,111   child value  1
+  batch 2.5s
+  ply 5 try 2:94,104           child value  1
+  ply 5 try 2:89,99            child value  1
+  ply 5 try 4A:79,90,101,111   child value  1
+  ply 5 try 4A:78,89,100,101   child value  1
+  batch 1.3s
+  ply 5 try 4A:100,111,112,113 child value  1
+  ply 5 try 4A:100,101,102,113 child value  1
+  ply 5 try 2:100,101          child value  1
+  ply 5 try 4A:101,112,113,114 child value  1
+  batch 2.4s
+  ply 5 try 3I:57,68,79        child value  1
+  ply 5 try 3V:89,100,101      child value  1
+  ply 5 try 4A:95,105,114,115  child value  1
+  ply 5 try 4I:46,57,68,79     child value  0
+  batch 9.6s
+PLY 6: 4I:46,57,68,79
+  ply 6 try 4B:80,81,89,90     child value  0
+  ply 6 try 4A:81,89,90,91     child value  0
+  ply 6 try 4B:7,8,19,20       child value  0
+  ply 6 try 4C:8,10,19,20      child value  0
+  batch 1.8s
+PLY 7: 4B:80,81,89,90
+  ply 7 try 4A:6,7,8,19        child value  1
+  ply 7 try 3I:6,7,8           child value  1
+  ply 7 try 4A:85,95,104,105   child value  0
+  ply 7 try 4A:105,113,114,115 child value  0
+  batch 0.2s
+PLY 8: 4A:85,95,104,105
+  ply 8 try 4A:8,19,20,21      child value  0
+  ply 8 try 4A:7,8,9,20        child value  0
+  ply 8 try 4A:8,9,10,21       child value  0
+  ply 8 try 4A:19,20,21,32     child value  0
+  batch 0.2s
+PLY 9: 4A:8,19,20,21
+  ply 9 try 3I:15,25,35        child value  0
+  ply 9 try 3V:15,25,36        child value  1
+  ply 9 try 2:15,25            child value  1
+  ply 9 try 2:51,61            child value  0
+  batch 0.1s
+PLY 10: 3I:15,25,35
+  ply 10 try 4C:56,66,77,78     child value  1
+  ply 10 try 3I:66,77,88        child value  0
+  ply 10 try 3I:111,112,113     child value  0
+  ply 10 try 3I:32,43,54        child value  1
+  batch 0.1s
+PLY 11: 3I:66,77,88
+  ply 11 try 3V:102,103,112     child value  0
+  ply 11 try 3V:103,112,113     child value  0
+  ply 11 try 3V:92,93,102       child value  0
+  ply 11 try 3V:102,113,114     child value  0
+  batch 0.1s
+PLY 12: 3V:102,103,112
+  ply 12 try 2:45,56            child value  0
+  ply 12 try 2:45,55            child value  0
+  ply 12 try 2:6,7              child value  1
+  ply 12 try 2:32,43            child value  1
+  batch 0.1s
+PLY 13: 2:45,56
+  ply 13 try 2:51,61            child value  0
+  ply 13 try 2:110,111          child value  1
+  ply 13 try 2:100,111          child value  1
+  ply 13 try 2:73,74            child value  1
+  batch 0.1s
+PLY 14: 2:51,61
+  ply 14 try pass               child value  0
+  batch 0.1s
+PLY 15: pass
+  ply 15 try pass               child value  0
+  batch 0.1s
+PLY 16: pass
+DONE 1:60 4B:16,27,28,39 3V:40,41,50 4C:49,59,70,71 4I:52,62,72,82 4I:46,57,68,79 4B:80,81,89,90 4A:85,95,104,105 4A:8,19,20,21 3I:15,25,35 3I:66,77,88 3V:102,103,112 2:45,56 2:51,61 pass pass

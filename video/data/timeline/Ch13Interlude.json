@@ -1,0 +1,41 @@
+{
+ "scene": "Ch13Interlude",
+ "beats": [
+  {
+   "key": "9471e61d7f1fd8d9",
+   "text": "So why did players feel that the first player cannot lose? I think the answer is sitting right on the table. The starting player takes the center, and has one more piece.",
+   "start": 3.9,
+   "duration": 11.138
+  },
+  {
+   "key": "5f41c69aba19c246",
+   "text": "If both players simply build their own snakes as long as they can, red wins by exactly one cell. That is the game most people play at first, and in that game the feeling is correct. Red also moves first and last, so it always seems to have the last word.",
+   "start": 15.033,
+   "duration": 17.55
+  },
+  {
+   "key": "71c0c99d8372464e",
+   "text": "What the numbers show is a different game, one where blue blocks. In the opening line we studied, blue wins by force against 16 of the 17 red replies we finished, usually with the very first move the engine suggests. Against the 17th it is the other way round: blue is the one clinging on, and in the line we followed only a move ranked 76th saved her.",
+   "start": 32.917,
+   "duration": 23.056
+  },
+  {
+   "key": "aa7c4ad870731c0d",
+   "text": "So were the players wrong? Not really. A game is not its game tree. A game is what people experience at the table, and if a game feels decided, it is decided for them. Theoretical balance means nothing when the balancing moves are invisible. Let me say that again. Theoretical balance means nothing when the balancing moves are invisible.",
+   "start": 56.917,
+   "duration": 22.783
+  },
+  {
+   "key": "93d5e6be7498ccc2",
+   "text": "And just because a game is perfectly balanced, that does not guarantee it is fun. What makes a game fun is a whole other big open question, one that game designers have been trying to answer for decades.",
+   "start": 83.2,
+   "duration": 12.024
+  },
+  {
+   "key": "bf0af8b6faa98022",
+   "text": "And that leaves me with a question I find genuinely interesting. Is a game where every result hangs on a single hidden cell a deep game, or a frustrating one? Perhaps it is both, depending on who is sitting across from you. It almost feels like the game of Go in some ways: you know there is an astronomical number of possible games, and it could hypothetically be calculated. But in the end, you must read your opponent, trust your intuition, and feel the patterns.",
+   "start": 97.017,
+   "duration": 27.995
+  }
+ ]
+}

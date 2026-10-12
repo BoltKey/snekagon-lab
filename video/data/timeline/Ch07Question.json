@@ -1,0 +1,23 @@
+{
+ "scene": "Ch07Question",
+ "beats": [
+  {
+   "key": "08d5b38951f3c66f",
+   "text": "Throughout the years, I focused on other projects at CGE: joining the Arnak team for all the expansions, working on SETI and its expansion, and more. But this game stayed in the back of my mind all those years.",
+   "start": 3.9,
+   "duration": 13.101
+  },
+  {
+   "key": "3949a6a08045185c",
+   "text": "Snekagon is just seven turns on a fairly small board. It looks like a game that can be solved easily. I gave it a few shots, and always failed. I tried some basic minimax search algorithms that I had a general idea about, but that was just not enough to tackle this, and long discussions with strong players of abstract games did not crack it either. At that point, I knew this would be quite a problem to solve.",
+   "start": 17.6,
+   "duration": 28.934
+  },
+  {
+   "key": "9c1ae5e5603c7dd0",
+   "text": "Meanwhile, the advent of large language models was unfolding. Of course I asked them to solve the game, and none of them could. Then Opus 5.5 came out, and I decided to try one more time. Not by asking for the answer, but by asking it to build the tools to find one.",
+   "start": 47.483,
+   "duration": 18.884
+  }
+ ]
+}

@@ -1,0 +1,77 @@
+[
+{
+"cells": [
+15,
+25,
+35,
+45
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+25,
+15,
+35,
+36
+]
+},
+{
+"cells": [
+25,
+35,
+45,
+55
+],
+"reason": "sharp turn: three red cells touching",
+"show": [
+25,
+35,
+36
+]
+},
+{
+"cells": [
+64,
+74,
+84,
+94
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+84,
+74,
+83,
+94
+]
+},
+{
+"cells": [
+15,
+16,
+17,
+18
+],
+"reason": "sharp turn: three red cells touching",
+"show": [
+15,
+16,
+5
+]
+},
+{
+"cells": [
+47,
+48,
+49,
+50
+],
+"reason": "a cell would get a third red neighbour",
+"show": [
+47,
+48,
+37,
+36,
+46,
+57
+]
+}
+]

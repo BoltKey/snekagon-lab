@@ -1,0 +1,53 @@
+{
+ "scene": "Ch09Solving",
+ "beats": [
+  {
+   "key": "92a981aefe374530",
+   "text": "Playing well is one thing. Solving means something much stronger: proving the result of perfect play, with no guessing anywhere.",
+   "start": 0.5,
+   "duration": 7.98
+  },
+  {
+   "key": "914584dcd0dfdb56",
+   "text": "How big is the tree? First, the cheap trick. The board looks the same after six rotations and a mirror, so up to twelve positions are really one. That leaves red just 12 truly different cells for the 1-hex, and after the centre opening, blue has 172 truly different replies instead of 2,132. But symmetry only helps at the very start. A few moves in, positions are almost never symmetric, and the numbers keep coming: around 1,600 replies for red, around 900 for blue after that. They shrink as the board fills, but they multiply. Even counting rotated and mirrored games as one, sampling random games suggests something like 10^29 different ways a game can unfold. You have no chance to look at them all.",
+   "start": 9.417,
+   "duration": 51.509
+  },
+  {
+   "key": "a585d7c8e1e5509f",
+   "text": "So the solver has to be clever about which parts it never looks at. Four tricks do almost all of the work.",
+   "start": 61.867,
+   "duration": 6.247
+  },
+  {
+   "key": "4322309422cdee7d",
+   "text": "One, speed. The whole board fits into a single 128-bit number, one bit per cell. Every position the solver meets becomes a pair of such numbers, one for red and one for blue. Finding all the neighbours of a snake is a handful of bit shifts, and the legality of a piece in every possible spot is checked at once.",
+   "start": 68.45,
+   "duration": 21.087
+  },
+  {
+   "key": "0e39aaa925ef2244",
+   "text": "Two, memory. Different move orders often reach the same position, so every result is stored and reused.",
+   "start": 90.483,
+   "duration": 6.544
+  },
+  {
+   "key": "385f95ed640be9e0",
+   "text": "Three, bounds. This one is specific to Snekagon. A snake never gets shorter, so its current length is a sure lower bound. And we can compute a sure upper bound: the cells a player can still reach, filled with the pieces they still have. If blue is already guaranteed more than red could ever get, the game is over, even with pieces left to play.",
+   "start": 97.967,
+   "duration": 22.813
+  },
+  {
+   "key": "edc3b7bbd8da99ab",
+   "text": "Four, order. The solver only needs one winning move to prove a win, so it tries the most promising moves first, ranked by the same learned judgement that powers the engine.",
+   "start": 121.717,
+   "duration": 10.058
+  },
+  {
+   "key": "642d3fae5102a26b",
+   "text": "With all of that, the first real test: a position after four moves. The solver checked every one of red’s 956 distinct moves, 11 billion positions in total, and proved that red loses after each of them. That took about ten hours of single-core computing. For one position, four moves into a fifteen-move game.",
+   "start": 132.717,
+   "duration": 20.811
+  }
+ ]
+}

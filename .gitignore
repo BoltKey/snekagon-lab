@@ -13,3 +13,12 @@ video/snekagon_ch1-7_*.mp4
 video/sfx/
 video/share/
 web/site/
+# video: code and data only; Adam's recordings, camera footage, third-party images and renders stay local
+video/recordings/
+video/assets/
+video/thumbnails/
+video/*.mp4
+video/*.wav
+video/*.zip
+video/data/script_edits*.jsonl
+video/voice/

@@ -1,0 +1,29 @@
+{
+ "scene": "Ch08Engine",
+ "beats": [
+  {
+   "key": "7117093f8a0861e0",
+   "text": "The first step was not solving the game. It was getting a program that plays it well. In the first session we had a fast rules engine, a web board to play on, and a first opponent.",
+   "start": 0.5,
+   "duration": 10.76
+  },
+  {
+   "key": "693b71ba576eb3b0",
+   "text": "That first opponent used Monte Carlo tree search. It plays thousands of random games from each position and prefers moves that tend to win. It sounds clever, but I beat it comfortably as blue. Random games simply do not understand walls: out of two thousand legal moves, often only a handful really matter, usually walls, and random games cannot tell them apart from the rest. It let itself get boxed in again and again. It turned out that the tree is simply too wide for Monte Carlo to be effective.",
+   "start": 12.2,
+   "duration": 31.168
+  },
+  {
+   "key": "75839f11dae66ccd",
+   "text": "The second engine looked ahead properly, with alpha-beta search, but judged positions with a hand-made rule, and it did even worse: it lost to the random games, 2 to 10.",
+   "start": 44.317,
+   "duration": 11.219
+  },
+  {
+   "key": "f61c702ecf25a507",
+   "text": "So instead of guessing what matters, we let the game tell us. The exact solver, which we will meet in a moment, can settle positions late in the game. We solved tens of thousands of such positions and fitted a simple model, a logistic regression over 13 features of the position, to predict who wins. The features are simple things: the length of each player’s longest snake, how many snake ends can still grow,  who reaches which empty cells first, or how many separate snakes each player has. With that learned judgement the engine beat the random-playout engine 16 games to 0, and it beats me comfortably every time.",
+   "start": 56.683,
+   "duration": 42.395
+  }
+ ]
+}

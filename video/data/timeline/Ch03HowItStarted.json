@@ -1,0 +1,29 @@
+{
+ "scene": "Ch03HowItStarted",
+ "beats": [
+  {
+   "key": "5b42cbdf75fec630",
+   "text": "The idea came out of thin air. I was riding home from a long, demanding game night back in 2019, and I wanted something completely elementary, as natural and simple as a game can get. Somewhere on that tram ride I caught it, and I did not let go.",
+   "start": 0.5,
+   "duration": 17.122
+  },
+  {
+   "key": "63609f8912366089",
+   "text": "The first games surprised me. The rules are tiny, but the board fills up fast, and every piece you place is a threat and a wall at the same time.",
+   "start": 19.167,
+   "duration": 8.984
+  },
+  {
+   "key": "0c64122d92a0bd92",
+   "text": "After a playtest at CGE in February 2020, where it was played a few times, I wrote this in my diary: “This game keeps fascinating me. An area-control abstract that lasts eight moves? That can’t work. But it does. You can never calculate more than seven moves ahead, simply because there will never be that many moves left. It is about planning and intuition, and every game is different.”",
+   "start": 33.95,
+   "duration": 25.671
+  },
+  {
+   "key": "d12e9b13644efc1f",
+   "text": "And the natural question followed: who wins? This game is small. Ninety-one cells, seven turns each. It has no dice, no cards, no hidden information. So somewhere out there is a definite answer: either the first player wins, or the second player wins, or perfect play ends in a tie. It really feels like a game that should be easy to solve.",
+   "start": 60.567,
+   "duration": 23.74
+  }
+ ]
+}

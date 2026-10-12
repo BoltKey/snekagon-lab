@@ -1,0 +1,35 @@
+{
+ "scene": "Ch12WhyHard",
+ "beats": [
+  {
+   "key": "f0f8ca4ce245eac3",
+   "text": "So, why is it so hard to prove? A proof of a win has a lopsided shape, and that shape is the whole problem.",
+   "start": 0.5,
+   "duration": 7.127
+  },
+  {
+   "key": "7734761445a423f4",
+   "text": "To prove that blue wins, blue needs just one good move at each of her turns. But she has to answer every single move red could make. One branch, then all branches, then one, then all. The “one” levels are cheap if you guess right. The “all” levels never are.",
+   "start": 8.467,
+   "duration": 17.287
+  },
+  {
+   "key": "9f988c18bfb58f83",
+   "text": "And guessing right is exactly what failed us. Under that stubborn red reply, blue has 1,032 different moves. To prove that blue cannot win there, we have to refute every one of them. The 40 most promising are done; 992 are left. Finishing them all would take my laptop anywhere from a few days to a few weeks.",
+   "start": 26.7,
+   "duration": 20.645
+  },
+  {
+   "key": "61b4dba9577ab6f4",
+   "text": "Scale that up. If the centre opening is a blue win, proving it at the pace we measured is a job of a year or two on my laptop. Proving the result of the whole game means doing that for every one of red’s 12 different first moves: a decade or more. And if the true answer is a draw, it is worse still: a draw has to be proven from both sides, so the “all moves” levels appear for both players.",
+   "start": 48.283,
+   "duration": 28.049
+  },
+  {
+   "key": "cf14c1e88f3d03ce",
+   "text": "The deepest reason why this game is so hard to solve is the one we saw at move 76. The solver is fast because good guesses let it skip almost everything. In this line, the decisive move was one nobody would guess, and nothing tells us it is the only place where the game hides one. And that is exactly why we need to prove every single one of red’s replies: we never know where a move that is rated weak is actually the strongest.",
+   "start": 77.267,
+   "duration": 27.773
+  }
+ ]
+}

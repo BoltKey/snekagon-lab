@@ -1,0 +1,29 @@
+{
+ "scene": "Ch01ColdOpen",
+ "beats": [
+  {
+   "key": "a5b0690bd40a4d58",
+   "text": "Here is a game you can explain in under a minute. Two players, one board, a handful of small pieces each.",
+   "start": 0.0,
+   "duration": 6.718
+  },
+  {
+   "key": "705fb9040893d061",
+   "text": "You take turns placing them. Each turn, either start a new snake that doesn't touch any other pieces, or grow one of your snakes. Whoever ends up with the longest snake wins.",
+   "start": 7.333,
+   "duration": 10.862
+  },
+  {
+   "key": "6165a6f7f6478e29",
+   "text": "Each player gets just seven real turns. The whole game fits on a coffee table and takes about 5 minutes.",
+   "start": 19.633,
+   "duration": 6.933
+  },
+  {
+   "key": "9b66b1ba6d005f1b",
+   "text": "So here is the question that has been bugging me for years. If both players play perfectly, who wins? It feels like a question a computer should answer in an evening. This video is about why it did not, what we found when we tried anyway, and a move the engine had ranked only 76th. One move that seemed weak at first, but changed the whole picture.",
+   "start": 29.733,
+   "duration": 24.081
+  }
+ ]
+}

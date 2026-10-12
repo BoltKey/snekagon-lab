@@ -1,0 +1,41 @@
+{
+ "scene": "Ch14WhatWeKnow",
+ "beats": [
+  {
+   "key": "59f9162974f506a7",
+   "text": "So where does this leave us? Three things I am now sure of.",
+   "start": 0.5,
+   "duration": 3.684
+  },
+  {
+   "key": "7eacec16e9691302",
+   "text": "For human players, the game is extremely tight. Results swing on a single cell, and the saving move can be one that even a strong engine ranks 76th.",
+   "start": 4.533,
+   "duration": 9.109
+  },
+  {
+   "key": "71d64162c8a095bc",
+   "text": "An exact proof is extremely expensive. Hundreds of hours of computing went into a single opening line, and that line is still open.",
+   "start": 13.983,
+   "duration": 8.71
+  },
+  {
+   "key": "2574f18cc249d10f",
+   "text": "It is not at all clear how the game ends with perfect play. Blue looked like the favourite, until one red reply refused to fall.",
+   "start": 23.033,
+   "duration": 8.57
+  },
+  {
+   "key": "9f1cffa93d4d35a5",
+   "text": "Seven turns. Ninety-one cells. And still, nobody knows who wins.",
+   "start": 32.75,
+   "duration": 5.354
+  },
+  {
+   "key": "bbd3d3851867594f",
+   "text": "If you want to play against the engine yourself, right in your browser, or analyse any position, click the link in the description. To buy the game, visit Maty Moves. And maybe one of you will find the next move 76. Thanks for watching.",
+   "start": 41.1,
+   "duration": 14.664
+  }
+ ]
+}
