@@ -182,7 +182,9 @@ inline void featureVector(const Pos& s, double x[NFEAT]) {
 
 // Learned evaluation: logit(P(side to move wins)), weights fitted on
 // solver-labelled positions (tools/fit_eval.py).
-inline double learnedLogit(const Pos& s) {
+// Kept out of line: inlined into some callers, the compiler fuses its multiply-adds (FMA) and two
+// near-equal logits can then order moves differently than elsewhere (node counts, never values).
+[[gnu::noinline]] inline double learnedLogit(const Pos& s) {
     double x[NFEAT];
     featureVector(s, x);
     double z = 0;

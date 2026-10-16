@@ -25,6 +25,10 @@ int cmdSpeed(const Args& args);
 int cmdSolveBench(const Args& args);
 int cmdBenchSet(const Args& args);
 int cmdSolvePos(const Args& args);
+// cmd_refute.cpp
+int cmdRefute(const Args& args);
+int cmdProveLine(const Args& args);
+int cmdUniqueMoves(const Args& args);
 // cmd_data.cpp
 int cmdGenData(const Args& args);
 int cmdRefeature(const Args& args);

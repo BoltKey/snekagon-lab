@@ -74,6 +74,17 @@ struct Position {
         return hash[symmetry];
     }
 
+    // 32 more bits that tell positions with the same key apart (the transposition table stores them),
+    // from the cells and pieces, independently of the Zobrist hash. Near the root, where the key is
+    // symmetry-canonical, it is 0 (those few positions do not need it).
+    uint32_t keyCheck() const {
+        if (ply <= SYMMETRY_PLY) return 0;
+        uint64_t x = (uint64_t)cells[RED] * 0x9E3779B97F4A7C15ULL ^ (uint64_t)(cells[RED] >> 64) * 0xC2B2AE3D27D4EB4FULL ^
+                     (uint64_t)cells[BLUE] * 0x165667B19E3779F9ULL ^ (uint64_t)(cells[BLUE] >> 64) * 0x27D4EB2F165667C5ULL ^
+                     uint64_t(piecesLeft[RED] | piecesLeft[BLUE] << 8 | sideToMove << 16) * 0x85EBCA77C2B2AE63ULL;
+        return uint32_t(x >> 32);
+    }
+
     void play(Move move) {
         int hashesToUpdate = ply < SYMMETRY_PLY ? NUM_SYMMETRIES : 1;
         if (move.isPass()) {
@@ -147,15 +158,9 @@ struct Position {
 
 // ---- results ---------------------------------------------------------------------------------
 
-// Longest red snake minus longest blue snake (> 0: red is ahead).
+// Longest red snake minus longest blue snake (> 0: red is ahead). The result of a finished game
+// as the exact solver counts it is gameResult() in solver.hpp.
 inline int redLead(const Position& pos) { return pos.longestSnake[RED] - pos.longestSnake[BLUE]; }
-
-// The result of a finished game for the side to move: +1 win, 0 draw, -1 loss.
-inline int gameResult(const Position& pos) {
-    int lead = redLead(pos);
-    int forRed = lead > 0 ? 1 : lead < 0 ? -1 : 0;
-    return pos.sideToMove == RED ? forRed : -forRed;
-}
 
 inline void initTables() {
     initBoardGeometry();

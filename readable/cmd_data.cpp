@@ -146,6 +146,15 @@ int cmdRefeature(const Args& args) {
 
 // ---- evalexplain -----------------------------------------------------------------------------
 
+// The logit of a feature vector with weight set 0 (without the early-game calibration), summed in
+// feature order. Kept out of line like learnedLogit: inlined and unrolled, its multiply-adds are
+// fused (FMA), and a printed logit can then round differently from src/'s.
+[[gnu::noinline]] static double explainedLogit(const std::array<double, NUM_FEATURES>& x) {
+    double z = 0;
+    for (int i = 0; i < NUM_FEATURES; i++) z += x[i] * featureWeights[0][i];
+    return z;
+}
+
 // snek evalexplain <move>...: feature values and their contributions to the logit after every
 // move (env WEIGHTS=<file> to explain a weights file instead of the compiled-in weights).
 int cmdEvalExplain(const Args& args) {
@@ -174,21 +183,16 @@ int cmdEvalExplain(const Args& args) {
         features.push_back(x);
         sideToMove.push_back(pos.sideToMove);
     }
-    auto logit = [](const std::array<double, NUM_FEATURES>& x) {
-        double z = 0;
-        for (int i = 0; i < NUM_FEATURES; i++) z += x[i] * featureWeights[0][i];
-        return z;
-    };
     for (int i = 0; i < NUM_FEATURES; i++) {
         printf("%-12s", FEATURE_NAMES[i]);
         for (auto& x : features) printf("  %4.0f %+5.2f", x[i], x[i] * featureWeights[0][i]);
         printf("\n");
     }
     printf("%-12s", "logit(stm)");
-    for (auto& x : features) printf("  %10.2f", logit(x));
+    for (auto& x : features) printf("  %10.2f", explainedLogit(x));
     printf("\n%-12s", "red win %");
     for (size_t k = 0; k < features.size(); k++) {
-        double p = 1 / (1 + std::exp(-logit(features[k])));
+        double p = 1 / (1 + std::exp(-explainedLogit(features[k])));
         printf("  %9.1f%%", 100 * (sideToMove[k] == RED ? p : 1 - p));
     }
     printf("\n");

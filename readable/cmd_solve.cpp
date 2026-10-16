@@ -12,19 +12,21 @@ static double secondsSince(std::chrono::steady_clock::time_point start) {
     return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 }
 
-static const char* resultWord(int value) { return value > 0 ? "win" : value < 0 ? "loss" : "draw"; }
+// lossTest: the value 0 means "does not lose" (a win or a draw)
+static const char* resultWord(int value, bool lossTest) { return value > 0 ? "win" : value < 0 ? "loss" : lossTest ? "notloss" : "draw"; }
 
 // Root moves already solved by an earlier run, read from a progress file
-// (lines "<move> <win|draw|loss> <nodes> <seconds>").
-static std::vector<std::pair<Move, int>> readProgress(const char* path) {
+// (lines "<move> <win|draw|loss|notloss> <nodes> <seconds>"). A "notloss" line, written by a
+// SOLVER_LOSS_TEST run, counts as 0 in a loss test but is no exact value: an exact run solves it again.
+static std::vector<std::pair<Move, int>> readProgress(const char* path, bool lossTest) {
     std::vector<std::pair<Move, int>> solved;
     std::ifstream in(path);
     std::string line, moveText, valueText;
     while (std::getline(in, line)) {
         std::istringstream fields(line);
         Move m;
-        if (fields >> moveText >> valueText && parseMove(moveText, m))
-            solved.push_back({m, valueText == "win" ? 1 : valueText == "loss" ? -1 : 0});
+        if (!(fields >> moveText >> valueText) || !parseMove(moveText, m) || (valueText == "notloss" && !lossTest)) continue;
+        solved.push_back({m, valueText == "win" ? 1 : valueText == "loss" ? -1 : 0});
     }
     return solved;
 }
@@ -32,17 +34,21 @@ static std::vector<std::pair<Move, int>> readProgress(const char* path) {
 // snek solvepos <seconds> <threads> <move> <move> ...
 // Parallel exact solve of the position after the given moves. With env PROGRESS=<file> every
 // solved root move is appended to the file, and moves already recorded there are skipped (resume).
+// With env SOLVER_LOSS_TEST=1 it only proves or refutes that the side to move loses, which is much
+// cheaper: every root move is "loss" or "notloss", and it stops at the first move that does not lose.
 int cmdSolvePos(const Args& args) {
     double seconds = args.arg(2, 0.0);
     int threads = args.arg(3, 1);
     Position pos = Position::initial();
     for (int i = 4; i < args.argc; i++)
         if (!playMoveText(pos, args.argv[i])) { printf("illegal move %s\n", args.argv[i]); return 1; }
+    bool lossTest = envInt("SOLVER_LOSS_TEST", 0) != 0;
+    SolveQuestion question = lossTest ? SolveQuestion::LOSS_TEST : SolveQuestion::EXACT;
 
     std::vector<std::pair<Move, int>> alreadySolved;
     FILE* progress = nullptr;
     if (const char* progressPath = getenv("PROGRESS")) {
-        alreadySolved = readProgress(progressPath);
+        alreadySolved = readProgress(progressPath, lossTest);
         if (!alreadySolved.empty()) printf("resuming: %zu root moves already solved\n", alreadySolved.size());
         progress = fopen(progressPath, "a");
     }
@@ -54,23 +60,27 @@ int cmdSolvePos(const Args& args) {
     auto onResult = [&](Move m, int value, uint64_t nodes, double moveSeconds) {
         solvedCount++;
         if (progress) {
-            fprintf(progress, "%s %s %llu %.1f\n", moveToString(m).c_str(), resultWord(value), (unsigned long long)nodes, moveSeconds);
+            fprintf(progress, "%s %s %llu %.1f\n", moveToString(m).c_str(), resultWord(value, lossTest), (unsigned long long)nodes, moveSeconds);
             fflush(progress);
         }
         printf("[%6.0fs] %4zu solved  %-22s %-4s %6.1fs %12llu nodes\n", secondsSince(start), solvedCount,
-               moveToString(m).c_str(), resultWord(value), moveSeconds, (unsigned long long)nodes);
+               moveToString(m).c_str(), resultWord(value, lossTest), moveSeconds, (unsigned long long)nodes);
         fflush(stdout);
     };
-    RootSolveResult result = parallelSolve(pos, seconds, threads, 22, alreadySolved, onResult);
+    RootSolveResult result = parallelSolve(pos, seconds, threads, 22, alreadySolved, onResult, question);
     if (progress) fclose(progress);
 
     int known = 0;
     for (auto& [move, value] : result.perMove) known += value != Solver::UNKNOWN;
-    printf("ply %d stm %d: value %s  (%d/%zu root moves solved, %llu nodes, %.1fs)\n", (int)pos.ply, (int)pos.sideToMove,
-           result.value == Solver::UNKNOWN ? "unknown" : std::to_string(result.value).c_str(), known, result.perMove.size(),
-           (unsigned long long)result.nodes, result.seconds);
+    // the loss test answers "loses" or "does not lose", never an exact value (ui/server.js reads "value")
+    std::string verdict = result.value == Solver::UNKNOWN ? "value unknown"
+                          : !lossTest                     ? "value " + std::to_string(result.value)
+                          : result.value < 0              ? "loses"
+                                                          : "does not lose";
+    printf("ply %d stm %d: %s  (%d/%zu root moves solved, %llu nodes, %.1fs)\n", (int)pos.ply, (int)pos.sideToMove, verdict.c_str(),
+           known, result.perMove.size(), (unsigned long long)result.nodes, result.seconds);
     for (auto& [move, value] : result.perMove)
-        if (value != Solver::UNKNOWN) printf("  %-22s %s\n", moveToString(move).c_str(), resultWord(value));
+        if (value != Solver::UNKNOWN) printf("  %-22s %s\n", moveToString(move).c_str(), resultWord(value, lossTest));
     return 0;
 }
 
@@ -120,10 +130,31 @@ int cmdSolveBench(const Args& args) {
     return 0;
 }
 
+// Per ply: nodes visited and how they ended - table cutoff, last pieces, bound cutoff, tight-bound
+// cutoff, expanded -, the share of the moves that threat zones skipped, threat scans and how often
+// they found a threat; then the one-player optimum's questions.
+static void printProfile(const Solver::Profile& p, const OnePlayerOptimum::Statistics& onePlayer) {
+    auto percent = [](uint64_t part, uint64_t whole) { return whole ? 100.0 * part / whole : 0.0; };
+    printf("ply     visited    tt-cut  last-pcs  bound-cut  tight-cut  expanded  threat-skip     scans  found\n");
+    for (int ply = 0; ply < 16; ply++)
+        if (p.visited[ply])
+            printf("%3d %11llu %9.1f%% %8.1f%% %9.1f%% %9.1f%% %9.1f%% %9.1f%% %9llu %5.1f%%\n", ply, (unsigned long long)p.visited[ply],
+                   percent(p.tableCut[ply], p.visited[ply]), percent(p.lastPieces[ply], p.visited[ply]),
+                   percent(p.boundCut[ply], p.visited[ply]), percent(p.tightCut[ply], p.visited[ply]), percent(p.expanded[ply], p.visited[ply]),
+                   percent(p.threatSkipped[ply], p.threatSkipped[ply] + p.movesListed[ply]), (unsigned long long)p.threatScans[ply],
+                   percent(p.threatScansFound[ply], p.threatScans[ply]));
+    printf("one-player queries %llu, cannot reach %.1f%%, %.1f search nodes per query, %llu out of budget\n",
+           (unsigned long long)onePlayer.questions, percent(onePlayer.unreachable, onePlayer.questions),
+           onePlayer.questions ? (double)onePlayer.searchNodes / onePlayer.questions : 0.0, (unsigned long long)onePlayer.outOfBudget);
+}
+
 // snek benchset <file> [threads]: exact solve of every position in the file (one move list per
 // line). Threads take positions in order and keep their solver between positions, like
-// parallelSolve does. Prints the cost per position and in total; env PROFILE=1 adds per-ply
-// statistics of the solver.
+// parallelSolve does. Prints the cost per position and in total. Environment:
+//   PROFILE=1        per-ply statistics of the solver
+//   BENCH_FRESH=1    every position starts from an empty table (node counts independent of the
+//                    order and the number of threads)
+//   BENCH_WINTEST=1  only whether the side to move wins (the window (0, 1))
 int cmdBenchSet(const Args& args) {
     std::ifstream in(args.arg(2, ""));
     int threads = args.arg(3, 8);
@@ -140,6 +171,8 @@ int cmdBenchSet(const Args& args) {
         }
         if (ok && any) positions.push_back(pos);
     }
+    bool fresh = envInt("BENCH_FRESH", 0) != 0;
+    bool winTestOnly = envInt("BENCH_WINTEST", 0) != 0;
 
     std::vector<int> value(positions.size());
     std::vector<uint64_t> nodes(positions.size());
@@ -147,6 +180,7 @@ int cmdBenchSet(const Args& args) {
     std::atomic<size_t> next{0};
     std::mutex profileLock;
     Solver::Profile total;
+    OnePlayerOptimum::Statistics totalOnePlayer;
     int sharedLog2 = envInt("SOLVER_SHARED", 0);
     std::shared_ptr<TranspositionTable> sharedTable = sharedLog2 ? std::make_shared<TranspositionTable>(sharedLog2 - 1) : nullptr;
     auto start = std::chrono::steady_clock::now();
@@ -155,18 +189,16 @@ int cmdBenchSet(const Args& args) {
         for (;;) {
             size_t i = next++;
             if (i >= positions.size()) break;
+            if (fresh) solver->clear();
             auto positionStart = std::chrono::steady_clock::now();
-            value[i] = solver->solve(positions[i]);
+            value[i] = winTestOnly ? solver->solve(positions[i], 0, UINT64_MAX, 0, 1) : solver->solve(positions[i]);
             nodes[i] = solver->nodes;
             {
                 std::lock_guard<std::mutex> lock(profileLock);
-                for (int p = 0; p < 16; p++) {
-                    total.visited[p] += solver->profile.visited[p];
-                    total.tableCut[p] += solver->profile.tableCut[p];
-                    total.boundCut[p] += solver->profile.boundCut[p];
-                    total.expanded[p] += solver->profile.expanded[p];
-                }
+                total.add(solver->profile);
                 solver->profile = Solver::Profile{};
+                totalOnePlayer.add(solver->onePlayerStatistics());
+                solver->resetOnePlayerStatistics();
             }
             seconds[i] = secondsSince(positionStart);
         }
@@ -185,13 +217,6 @@ int cmdBenchSet(const Args& args) {
     }
     printf("TOTAL %zu positions: %llu nodes, %.1f thread-seconds, %.1f s wall (%d threads)\n", positions.size(),
            (unsigned long long)totalNodes, threadSeconds, wall, threads);
-    if (getenv("PROFILE")) {
-        printf("ply     visited    tt-cut  bound-cut  expanded\n");
-        for (int p = 0; p < 16; p++)
-            if (total.visited[p])
-                printf("%3d %11llu %9.1f%% %9.1f%% %9.1f%%\n", p, (unsigned long long)total.visited[p],
-                       100.0 * total.tableCut[p] / total.visited[p], 100.0 * total.boundCut[p] / total.visited[p],
-                       100.0 * total.expanded[p] / total.visited[p]);
-    }
+    if (getenv("PROFILE")) printProfile(total, totalOnePlayer);
     return 0;
 }

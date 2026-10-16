@@ -51,10 +51,13 @@ on every push to `main`. Both front ends share the protocol in `src/serve.hpp`.
 | Component | What it does |
 |---|---|
 | move generation (`core.hpp`) | for each of the 40 piece orientations the legality of **all anchor cells at once** is an AND/OR of shifted 128-bit boards (no-overlap, isolation for new snakes, own-degree ≤ 2, no sharp turns, touching own). ~2.6 µs for a full move list, perft 3 in 0.95 s (4.3× faster than v1). |
-| length bounds (`snakeBounds`) | **sound** lower/upper bound of each player's final longest snake: a player can never again occupy a cell next to its own snake body, so the final snake lies in one cluster of *own cells ∪ growable cells*; new cells ≤ subset-sum fit of the remaining pieces into the growable regions. Detects enclosed snakes immediately. |
+| length bounds (`snakeBounds`) | **sound** lower/upper bound of each player's final longest snake: a player can never again occupy a cell next to its own snake body, so the final snake lies in one cluster of *own cells ∪ growable cells*; new cells ≤ subset-sum fit of the remaining pieces into the growable regions; with k pieces left at most the k + 1 longest snakes of a cluster can end up in one final snake (old snakes and new pieces alternate along it). Detects enclosed snakes immediately. |
 | evaluation (`eval.hpp`) | features from a Tron-style Voronoi split (who reaches which cell first from its growable snake ends), per-snake territory, bounds, number of snakes…; **logistic regression fitted on ~68 000 positions whose exact result was computed by the solver** (`tools/fit_eval.py`). Hold-out: predicts the winner in 87–90 % of decisive positions (hand-made eval: 72 %). |
 | search (`search.hpp`) | iterative-deepening PVS α-β, TT on symmetry-canonical keys, killers/history, forward pruning (best 24 by 1-ply eval at depth ≥ 2), bound cutoffs, the exact solver once ≤ 6 pieces remain; parallel over root moves with multi-PV. Depth 4–5 in 3 s early in the game. |
-| exact solver (`solver.hpp`) | negamax over {loss, draw, win}, TT, bound cutoffs, TT/killer/history ordering + learned-eval ordering when ≥ 7 pieces remain; `parallelSolve` splits root moves over threads. |
+| exact solver (`solver.hpp`) | negamax over {loss, draw, win}, TT, bound cutoffs, **threat zones**, an exact closed form for the last two pieces, **tight bounds** near the end, TT/killer/static ordering + learned-eval ordering when ≥ 7 pieces remain; `solve()` takes a window, so "does the side to move win?" is a cheaper null-window question; `parallelSolve` splits root moves over threads. |
+| threat zones (`Solver::scanThreats`) | an opponent placement *b* is a threat when, played as a free move, it makes the bounds decide the game. Any move that leaves *b* playable (does not cover it, nor touch it when *b* starts a new snake) lets the opponent answer with *b*, and the bounds only tighten from there, so such moves are worth at most that result: only moves through the zone of every threat are searched (the "must-play" region of Hex solvers). Threats come from the killer refutations one ply down and, once a node's first move fails, from a scan of all opponent placements, filtered cluster by cluster. |
+| one-player optimum (`OnePlayer`, `core.hpp`) | could a player still make a snake of *k* cells if the opponent never moved again? A depth-first search over induced paths and rings of whole old snakes and whole new pieces, each piece attached at an end of the path built so far, cluster by cluster with a memo. It drops the opponent's future cells, the move order and the touch-nothing rule, so a "no" is a sound upper bound, and it follows how the fixed piece shapes chain, which the cluster bound does not. |
+| tight bounds (`Solver::tightenBounds`) | lower bounds one and two plies ahead: the side to move's best immediate length, and the length the opponent reaches whatever single move the side to move makes. Then only the one-player questions whose answer ends the node in its window are asked. Used at every node once ≤ 5 pieces are left in total, and with 6 left once a node's first move failed, over the moves still to search; killer threats use the optimum as well. |
 
 **Strength:** `snek arena` (random opening = random 1-hex + random reply, each opening played with both
 colours, 1 s/move):
@@ -141,6 +144,61 @@ provably safe definition covers well under 1 % of moves). Profiling (`PROFILE=1 
 why big gains are hard: the winning side finds its move at the first try ~90 % of the time, so the search
 is already close to the minimal proof; the cost is the loser having to answer every move.
 
+### Solver v4: threat zones, tight bounds, win tests
+
+What the solver does differently from v3 (commit ed2c6b1), every change exact (the values never change):
+
+- **threat zones** and the **last two pieces** in closed form (the side to move places its piece, then the
+  opponent its longest extension that is still legal), see the table above;
+- the **k + 1 rule** in `snakeBounds` (also in `verify`'s reference bound);
+- **windows**: `solve()` takes (alpha, beta); `parallelSolve` can ask only whether the side to move loses
+  or wins (`SolveQuestion`), which is what a refutation or a distributed unit needs;
+- **ordering**: no history heuristic (its scores, piled up over a long solve, outweighed the static
+  ordering), the learned evaluation only once the table move or a killer fails, and after the first three
+  moves one sort of the rest;
+- **tight bounds** near the end: the one-player optimum and guaranteed growth;
+- **one table per sweep**: the solves of a `refute` sweep or a distributed worker share one table kept from
+  unit to unit (`SOLVER_SWEEP_TT=<log2 entries>`, default 25: 512 MB per process); killers and the
+  one-player memo are reset per position (`Solver::newPosition`, also before every root move of
+  `parallelSolve`). Unlike the table shared by one solve's threads that v3 rejected, it is shared by
+  sibling units, which have much of their trees in common. Past ply 6, where keys are no longer
+  symmetry-canonical, every table entry carries a 32-bit check of the position, since the key bits that
+  pick the bucket verify nothing (a 2^25-entry table would otherwise mistake a position about once in
+  2^39 probes);
+- **hot paths**: placements in one array by id, the next child's table entry fetched while a child is
+  searched, `remainingCells` without a loop, `learnedLogit` out of line (inlined, its fused multiply-adds
+  ordered moves differently in different callers).
+
+Measured against v3, every position in its own process (empty tables), 4 processes at a time on a
+Ryzen 7 250 (16 threads) that ran other solver work on 6 threads; node counts are exact, seconds approximate
+(the first four sets: the range of two back-to-back rounds; the refutation units: one round):
+
+| positions | v3: nodes, thread-s | v4: nodes, thread-s | v4 win test (`BENCH_WINTEST=1`) |
+|---|---|---|---|
+| `ply5_blue_wins.txt` | 361.2 M, 205-209 | 4.40 M, 13 | 3.85 M, 12 |
+| `ply5_blue_wins_holdout.txt` | 425.4 M, 252-255 | 4.31 M, 14 | 3.69 M, 12 |
+| `ply5_random_units.txt` | 285.2 M, 157 | 6.16 M, 18 | 4.59 M, 14 |
+| `ply5_other_openings.txt` | 220.5 M, 117 | 7.45 M, 15 | 6.42 M, 13 |
+| `ply5_ublock_refutations.txt` (30 units) | 2 560 M, 2 059 | 37.37 M, 137 | 22.04 M, 85 |
+
+Over the 96 units of the first four sets: 1 292 M nodes and 731–738 thread-seconds with v3, 22.3 M and 59.5
+with v4 (58x and 12x fewer), 18.6 M and 51 with the win test. The sets are in `bench/`. The first four hold
+24 ply-5 units each, all blue wins: `ply5_blue_wins.txt` (red's moves in the pilot),
+`ply5_blue_wins_holdout.txt` (24 others from the pilot in the same cost range), `ply5_random_units.txt`
+(drawn like the distributed solve's units: a random red reply to `1:60 4B:16,27,28,39`, blue's answer from a
+2 s search, a random red move) and `ply5_other_openings.txt` (blue wins from two verification jobs in
+`results/jobs`). `ply5_ublock_refutations.txt` holds 30 proof steps: every 31st of the 938 refutations that
+`snek refute` found after red's U-block reply `1:60 4B:16,27,28,39 4C:40,41,50,52` (below), each a position
+where blue does not win (27 losses, 3 draws). `snek solvebench` gives the full window on random positions,
+one thread:
+
+| `snek solvebench` | v3: nodes, seconds | v4: nodes, seconds |
+|---|---|---|
+| `5 12 3600 1` | 751.6 M, 487 s | 15.54 M, 56 s |
+| `6 12 3600 1` | 51.65 M, 34 s | 2.47 M, 8 s |
+
+The feasibility estimate below predates v4: it prices a red reply at v2/v3 costs.
+
 ### Is a full solution feasible?
 
 Solving the centre opening (value after `1:60`) if blue wins = one blue move + all 1589 red replies, each a
@@ -148,6 +206,30 @@ ply-3/ply-4 problem like the pilot: ~1589 × ~5.5 thread-hours × (1.5–3 overh
 i.e. roughly 1–3 months of this laptop (Ryzen 7 5800H, 16 threads) running 24/7, or ~1 day on 1000 cloud
 cores. Units are independent jobs (resumable, see `results/jobs/`), so any number of machines can share the
 work.
+
+## Refutation sweeps (`snek refute`, `snek proveline`)
+
+`snek refute <threads> <log> <moves…>` shows that the side to move (the attacker) cannot win, or finds a
+move that wins: for every attacker move a defender reply after which the attacker does not win. Pass 1 tries
+the replies that refuted other moves first, then the defender's best by the evaluation, as node-limited win
+tests (`REFUTE_TRIES` × `REFUTE_NODES` M nodes); pass 2 settles the moves left open with a full search over
+every reply (a `parallelSolve` yes/no question). The passes alternate on chunks of `REFUTE_CHUNK` moves and
+stop at the first move that survives. Attacker moves are taken in the evaluation's order after the 8 best of a
+`REFUTE_SEARCH` (2) second engine search; `REFUTE_FIRST=<file>` proves the listed moves first, in their
+order, and `REFUTE_PROVE_TOP=<k>` then the k best, before any refutation tries. `REFUTE_LOSS=1` asks whether
+the attacker loses instead. The log is resumable and headed by the position, `REFUTE_LOSS` and
+`SOLVER_RED_BONUS` (a log of anything else is refused); every refutation in it is one position anyone can
+re-solve. For example, `REFUTE_SEARCH=2 snek refute 5 u.log 1:60 4B:16,27,28,39 4C:40,41,50,52` refutes all
+938 blue moves after red's U-block reply in 382 s on 5 threads (934 of them in pass 1), so blue's
+`4B:16,27,28,39` does not win against the centre; with `REFUTE_LOSS=1` and `REFUTE_FIRST` listing
+`4A:49,59,70,81`, the sweep proves in 35 s that this blue move does not lose there.
+
+`snek proveline <threads> <dir> <moves…>` settles every reply of the side to move with a `refute` sweep for
+the opponent: an answer that wins against all replies, or proof that the opponent cannot win after that reply
+(which settles the line; `PROVELINE_ALL=1` goes on). Answers that won against earlier replies are tried first;
+`PROVELINE_SEARCH=<s>` takes the replies in the order of an `<s>` second engine search (kept in
+`dir/order.txt`). `dir/summary.txt` and the sweeps' logs make it resumable. `snek uniquemoves` lists the
+symmetry-unique moves of a position in the same order.
 
 ## Distributed solve of the centre opening (`dist/`)
 
@@ -176,7 +258,9 @@ bash dist/stop.sh           # stop (state in results/dist/ is kept, start.sh res
 
 Other machines on the same network join with `snek worker <ip>:8090 <threads>` (Windows:
 `snek.exe worker …`). Status page: `http://<ip>:8091/` (also `/events`, `/state`). Earlier verification results from
-`results/jobs/` are reused automatically.
+`results/jobs/` are reused automatically. Workers started with `SOLVER_WIN_TEST=1` only ask whether blue wins each
+unit; a unit that is not a blue win then comes back as 0 (draw or loss) or -1 (loss). A worker's threads share
+one transposition table that is kept from unit to unit (`SOLVER_SWEEP_TT`, as for `snek refute`).
 
 ## Tools
 
@@ -186,11 +270,14 @@ Other machines on the same network join with `snek worker <ip>:8090 <threads>` (
 | `snek arena <pairs> <sec> <threads> <A> <B> [seed]` | engine match; engines `ab`, `abhand`, `mcts`, `ab:<weights.txt>` |
 | `snek gendata <games> <plyMin> <plyMax> <solveSec> <threads> <seed>` | labelled positions (features + exact value) as CSV |
 | `python tools/fit_eval.py data/*.csv` | fit the evaluation → `src/eval_weights.hpp`, `data/weights_latest.txt` |
-| `snek solvepos <sec> <threads> <moves…>` | parallel exact solve of a position |
+| `snek solvepos <sec> <threads> <moves…>` | parallel exact solve of a position (`PROGRESS=<file>` logs and resumes; `SOLVER_LOSS_TEST=1` only proves or refutes that the side to move loses: each root move is `loss` or `notloss`, much cheaper) |
+| `snek refute <threads> <log> <moves…>` | shows that the side to move cannot win (`REFUTE_LOSS=1`: that it loses), or finds a move that survives (see [Refutation sweeps](#refutation-sweeps-snek-refute-snek-proveline)) |
+| `snek proveline <threads> <dir> <moves…>` | settles every reply of the side to move with `refute` for the opponent, resumable |
+| `snek uniquemoves <sec> <top> <threads> <moves…> [-- <move>…]` | the side to move's symmetry-unique moves, best first (the `<top>` best of a `<sec>` second search, then the evaluation's order); moves after `--` are mapped to their representative |
 | `snek solvebench <plies> <n> <sec> <threads>` | solver benchmark on random positions |
 | `snek selfplay <games> <sec> <threads>` | engine vs itself, prints the game |
-| `snek verify [games]` | fast move generator == reference checker, incremental snakes and fast bounds == reference, bounds never violated |
-| `snek benchset <file> <threads>` | solver benchmark on a fixed position set (`PROFILE=1` prints per-ply statistics) |
+| `snek verify [games]` | fast move generator == reference checker, incremental snakes and fast bounds == reference, bounds never violated, the one-player optimum between the final snake and the cluster bound, the same per cluster as on the whole board, and never below the real-rules one-player optimum |
+| `snek benchset <file> <threads>` | solver benchmark on a fixed position set (`PROFILE=1` prints per-ply statistics, including threat zones, the last pieces, the tight bounds and the one-player questions; `BENCH_FRESH=1` starts every position from empty tables for reproducible node counts, `BENCH_WINTEST=1` only asks whether the side to move wins) |
 | `snek perft <d>`, `snek speed`, `snek info` | counting / micro-benchmarks |
 | `python ref/crosscheck.py [games]` | engine vs independent Python rules implementation |
 
@@ -211,6 +298,13 @@ Other machines on the same network join with `snek worker <ip>:8090 <threads>` (
 - `snek verify 3000`: bit-parallel generator gives the identical move list (same order) as the per-placement
   checker in 47 131 positions; the length bounds held for the final result in all 94 262 checks.
 - Solver v2 gives the same values as v1 on all benchmark positions.
+- Solver v4 gives the same values as v3 on 1 548 random positions (`snek solvebench`, 96 per ply 8–12 and red
+  bonus −1/0/+1 (`SOLVER_RED_BONUS`), so that draws and losses occur, and 12 per ply 5–7 and bonus), on the 96
+  units of the first four `bench/` sets (exact and win test) and on the 30 of `ply5_ublock_refutations.txt`.
+- `snek verify 3000` also checks the one-player optimum in 55 259 positions with at most 4 pieces left: never
+  below the final snake, never above the cluster bound (strictly below it in 24 272), the same cluster by
+  cluster as over the whole board, and never below the real-rules one-player optimum (brute force on 43 191
+  positions with at most 3 pieces).
 - `perft`: 1 → 91, 2 → 194 388, 3 → 315 706 848.
 
 ## Layout
@@ -221,6 +315,7 @@ Other machines on the same network join with `snek worker <ip>:8090 <threads>` (
 | `src/eval.hpp`, `src/eval_weights.hpp` | features, learned + hand-made evaluation |
 | `src/search.hpp` | α-β playing engine |
 | `src/solver.hpp` | exact solver, parallel solve |
+| `src/refute.hpp` | refutation sweep (`snek refute`, `snek proveline`) |
 | `src/mcts.hpp` | v1 MCTS engine (kept for comparison) |
 | `src/main.cpp` | CLI + UI protocol |
 | `readable/` | the same engine refactored for reading (identical results), with a reading guide: [readable/README.md](readable/README.md) |
@@ -228,4 +323,5 @@ Other machines on the same network join with `snek worker <ip>:8090 <threads>` (
 | `tools/fit_eval.py` | evaluation fitting |
 | `data/` | solver-labelled positions (`labels_v*.csv`), weight files |
 | `ui/` | Node server + single-page UI |
+| `bench/` | fixed position sets for `snek benchset` |
 | `results/` | benchmark / arena / solve logs |
