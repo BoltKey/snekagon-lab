@@ -66,6 +66,9 @@ struct Orientation {
     // there is fine only if it has no own neighbour yet (it becomes a snake body cell).
     std::vector<std::pair<int, int>> bridgeCells;
     int16_t placementAt[GRID_SIZE];  // anchor cell -> placement id (-1: piece would leave the board)
+    // cell -> the anchors where the piece covers a neighbour of that cell but not the cell itself
+    // (how the one-player optimum extends a snake end, bounds.hpp)
+    Bitboard anchorsNextTo[GRID_SIZE];
 };
 
 struct PieceTables {
@@ -161,7 +164,10 @@ inline Orientation describeOrientation(int piece, const CellOffsets& cells) {
                 }
             (wedge ? o.wedgeCells : o.bridgeCells).push_back(outside);
         }
-    for (int i = 0; i < GRID_SIZE; i++) o.placementAt[i] = -1;
+    for (int i = 0; i < GRID_SIZE; i++) {
+        o.placementAt[i] = -1;
+        o.anchorsNextTo[i] = 0;
+    }
     return o;
 }
 
@@ -181,6 +187,7 @@ inline void addPlacements(Orientation& o, const CellOffsets& cells) {
         p.piece = o.piece;
         p.id = (int)pieceTables.placements.size();
         o.placementAt[anchor] = (int16_t)p.id;
+        forEachCell(p.border, [&](int cell) { o.anchorsNextTo[cell] |= cellBit(anchor); });
         pieceTables.placements.push_back(p);
     }
 }

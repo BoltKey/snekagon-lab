@@ -5,7 +5,8 @@ Goal: prove that after  1:60 4B:16,27,28,39  (red's centre 1-hex and blue's repl
 i.e. for EVERY red reply r2 there is a blue move b3 such that EVERY red move r4 loses.
 
 Work is split into units = positions after 5 moves (base r2 b3 r4, blue to move); a worker
-returns the exact value for blue (1 win / 0 draw / -1 loss, -9 = node budget exceeded).
+returns the value for blue (1 win / 0 draw / -1 loss, -9 = node budget exceeded). A worker
+started with SOLVER_WIN_TEST=1 only asks whether blue wins: its 0 means no win (a draw or a loss).
 
 Per red reply r2 ("entry"):
   * blue candidates b3 are ranked by an alpha-beta search (precomputed in the background),
@@ -366,7 +367,7 @@ def on_result(uid, value, nodes, sec, worker):
             e['hard'].remove(r4)
         check_progress(ei)
     elif v in (0, -1):
-        log('red reply %s: blue candidate %s fails (%s after %s)' % (e['r2'], cand, 'draw' if v == 0 else 'loss', r4))
+        log('red reply %s: blue candidate %s fails (%s after %s)' % (e['r2'], cand, 'no win' if v == 0 else 'loss', r4))
         e['failed'].append([cand, r4, v])
         if r4 in e['killers']:
             e['killers'].remove(r4)

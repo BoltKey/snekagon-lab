@@ -74,14 +74,54 @@ static bool verifyPosition(const Position& pos, const std::vector<Move>& fast, i
     return true;
 }
 
+// The one-player optimum of `player` (the longest snake OnePlayerOptimum allows), asked of the
+// given clusters, or -1 if a question ran out of budget.
+static int onePlayerOptimum(OnePlayerOptimum& optimum, const Position& pos, int player, const SnakeClusters& clusters, int upper) {
+    for (int target = upper; target > pos.longestSnake[player]; target--) {
+        uint64_t outOfBudget = optimum.stats.outOfBudget;
+        bool may = optimum.mayReach(pos, player, clusters, target);
+        if (optimum.stats.outOfBudget != outOfBudget) return -1;
+        if (may) return target;
+    }
+    return pos.longestSnake[player];
+}
+
+// The longest final snake of `player` under the real rules if the opponent never moved again (it
+// passes), by brute force; -1 when `budget` positions are used up.
+static int oneHandedBest(const Position& pos, int player, uint64_t& budget) {
+    if (budget == 0) return -1;
+    budget--;
+    int best = pos.longestSnake[player];
+    Position mine = pos;
+    mine.sideToMove = player;
+    if (!mine.piecesLeft[player]) return best;
+    std::vector<Move> moves;
+    generateMoves(mine, moves);
+    for (Move m : moves) {
+        Position next = mine;
+        next.play(m);
+        int length = oneHandedBest(next, player, budget);
+        if (length < 0) return -1;
+        best = std::max(best, length);
+    }
+    return best;
+}
+
 // snek verify [games]: plays random games and checks in every position that
 //  - the fast move generator returns exactly the reference move list (same order),
 //  - the incremental snakes and the fast bounds match their slow versions,
-// and at the end of every game that the final snake lengths lie within all earlier bounds.
+// and at the end of every game that the final snake lengths lie within all earlier bounds, and,
+// where the player has at most 4 pieces left, that its one-player optimum lies between its final
+// snake and its bound, is the same asked cluster by cluster as over the whole board, and (at most
+// 3 pieces) is at least the real-rules optimum when the opponent never moves again.
 int cmdVerify(const Args& args) {
     int games = args.arg(2, 2000);
     Rng rng(99);
     long positions = 0, boundChecks = 0;
+    constexpr int OPTIMUM_MAX_PIECES = 4, BRUTE_FORCE_MAX_PIECES = 3;
+    constexpr uint64_t BRUTE_FORCE_BUDGET = 300000;
+    OnePlayerOptimum optimum;
+    long optimumChecks = 0, optimumTighter = 0, optimumUnknown = 0, bruteCompared = 0, bruteEqual = 0, bruteUnknown = 0;
     std::vector<Move> moves;
     for (int game = 0; game < games; game++) {
         Position pos = Position::initial();
@@ -112,9 +152,39 @@ int cmdVerify(const Args& args) {
                            finalLength[c], b.lower, b.upper);
                     return 1;
                 }
+                if (earlier.ply == 0 || pieceCount(earlier.piecesLeft[c]) > OPTIMUM_MAX_PIECES) continue;
+                SnakeClusters clusters, wholeBoard;
+                snakeBounds(earlier, c, &clusters);
+                wholeBoard.count = 1;  // one region over the whole board: the clusters must not change the answer
+                wholeBoard.cells[0] = earlier.cells[c] | growableCells(earlier, c);
+                wholeBoard.upper[0] = GRID_SIZE;
+                int best = onePlayerOptimum(optimum, earlier, c, clusters, b.upper);
+                int bestWhole = onePlayerOptimum(optimum, earlier, c, wholeBoard, GRID_SIZE);
+                if (best < 0 || bestWhole < 0) { optimumUnknown++; continue; }
+                optimumChecks++;
+                if (best < b.upper) optimumTighter++;
+                if (finalLength[c] > best || best != bestWhole) {
+                    printf("ONE-PLAYER VIOLATION game %d ply %d player %d: final %d, optimum %d (whole board %d), cheap bound %d\n", game,
+                           (int)earlier.ply, c, finalLength[c], best, bestWhole, b.upper);
+                    return 1;
+                }
+                if (pieceCount(earlier.piecesLeft[c]) > BRUTE_FORCE_MAX_PIECES) continue;
+                uint64_t budget = BRUTE_FORCE_BUDGET;
+                int real = oneHandedBest(earlier, c, budget);
+                if (real < 0) { bruteUnknown++; continue; }
+                bruteCompared++;
+                if (real == best) bruteEqual++;
+                if (real > best) {
+                    printf("ONE-PLAYER VIOLATION game %d ply %d player %d: real-rules optimum %d > relaxation %d\n", game, (int)earlier.ply, c,
+                           real, best);
+                    return 1;
+                }
             }
     }
     printf("ok: %ld positions movegen identical, %ld bound checks hold\n", positions, boundChecks);
+    printf("ok: one-player optimum in %ld checks (%ld unknown): final <= optimum <= cheap bound (strictly below it in %ld), "
+           "per cluster == whole board; >= real-rules brute force in %ld (equal %ld, %ld over budget)\n",
+           optimumChecks, optimumUnknown, optimumTighter, bruteCompared, bruteEqual, bruteUnknown);
     return 0;
 }
 

@@ -17,10 +17,13 @@ static const std::map<std::string, Command> COMMANDS = {
     {"arena", {cmdArena, "arena [pairs] [s/move] [threads] [engineA] [engineB] [seed] [randomPlies]"}},
     {"selfplay", {cmdSelfPlay, "selfplay [games] [s/move] [threads]"}},
     // exact solving
-    {"solvepos", {cmdSolvePos, "solvepos <seconds> <threads> <move>...    (env PROGRESS=<file> to log/resume)"}},
+    {"solvepos", {cmdSolvePos, "solvepos <seconds> <threads> <move>...    (env PROGRESS=<file> to log/resume, SOLVER_LOSS_TEST=1)"}},
+    {"refute", {cmdRefute, "refute <threads> <log> <move>...      the side to move cannot win, or a move that wins (env REFUTE_LOSS=1, REFUTE_FIRST=<file>)"}},
+    {"proveline", {cmdProveLine, "proveline <threads> <dir> <move>...   settle every reply of the side to move with refute (env PROVELINE_SEARCH=<s>)"}},
+    {"uniquemoves", {cmdUniqueMoves, "uniquemoves <seconds> <top> <threads> <move>... [-- <move>...]   symmetry-unique moves, best first"}},
     {"worker", {cmdWorker, "worker <coordinator[:port]> [threads] [name]   distributed solving"}},
     {"solvebench", {cmdSolveBench, "solvebench [plies] [count] [seconds] [threads]"}},
-    {"benchset", {cmdBenchSet, "benchset <file> [threads]             (env PROFILE=1 for per-ply statistics)"}},
+    {"benchset", {cmdBenchSet, "benchset <file> [threads]             (env PROFILE, BENCH_FRESH, BENCH_WINTEST)"}},
     // checks
     {"perft", {cmdPerft, "perft [depth]                         count move sequences"}},
     {"verify", {cmdVerify, "verify [games]                        fast generator/bounds vs reference versions"}},

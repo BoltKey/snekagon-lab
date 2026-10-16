@@ -70,7 +70,10 @@ inline void featureVector(const Position& pos, double x[NUM_FEATURES]) {
 }
 
 // logit(P(side to move wins))
-inline double learnedLogit(const Position& pos) {
+// Kept out of line, so that every caller gets the same rounding: inlined and unrolled, the sum's
+// multiply-adds may be fused (FMA) in some callers and not in others, which changes the last bit
+// of the logit, now and then a move order, and so the node counts.
+[[gnu::noinline]] inline double learnedLogit(const Position& pos) {
     double x[NUM_FEATURES];
     featureVector(pos, x);
     double z = 0;

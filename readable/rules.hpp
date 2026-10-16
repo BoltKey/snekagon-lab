@@ -47,10 +47,12 @@ inline SnakeShape snakeShapeOf(Bitboard own) {
 
 // ---- reference rule check (one placement at a time) ------------------------------------------
 
-inline bool isLegalPlacement(const Position& pos, const Placement& p) {
+// Whether `player` may place p, whether or not it is that player's turn (the solver asks what the
+// opponent could play next).
+inline bool isLegalPlacementFor(const Position& pos, int player, const Placement& p) {
     Bitboard occupied = pos.occupied();
     if (p.cells & occupied) return false;
-    Bitboard own = pos.ownCells();
+    Bitboard own = pos.cells[player];
     bool touchesOwn = p.border & own;
     if (!touchesOwn && (p.border & occupied)) return false;  // a new snake must not touch anything
     Bitboard ownAfter = own | p.cells;
@@ -70,6 +72,10 @@ inline bool isLegalPlacement(const Position& pos, const Placement& p) {
         if (countCells(geometry.neighbours[i] & ownAfter) > 2) return false;
     }
     return true;
+}
+
+inline bool isLegalPlacement(const Position& pos, const Placement& p) {
+    return isLegalPlacementFor(pos, pos.sideToMove, p);
 }
 
 // ---- fast move generator ---------------------------------------------------------------------
@@ -100,14 +106,10 @@ inline MoveGenContext moveGenContext(const Position& pos) {
     return g;
 }
 
-// All anchor cells where orientation `o` may be placed, as one bitboard. Each line tests one
+// The anchor cells where orientation `o` grows an own snake, as one bitboard. Each line tests one
 // piece cell for every anchor at once: "the cell at anchor + offset satisfies X" is
 // cellsWithOffsetIn(X, offset).
-inline Bitboard legalAnchors(const Orientation& o, const MoveGenContext& g) {
-    Bitboard newSnake = geometry.allCells;  // every piece cell touches nothing
-    for (int k = 0; k < o.size; k++) newSnake &= cellsWithOffsetIn(g.freeForNewSnake, o.dq[k], o.dr[k]);
-    if (!g.emptyNextToOwn) return newSnake;
-
+inline Bitboard growingAnchors(const Orientation& o, const MoveGenContext& g) {
     Bitboard grow = geometry.allCells, touchesOwn = 0;
     for (int k = 0; k < o.size; k++) {
         grow &= cellsWithOffsetIn(g.allowed[o.innerNeighbours[k]], o.dq[k], o.dr[k]);
@@ -119,22 +121,62 @@ inline Bitboard legalAnchors(const Orientation& o, const MoveGenContext& g) {
         for (auto [q, r] : o.wedgeCells) grow &= ~cellsWithOffsetIn(g.own, q, r);
         for (auto [q, r] : o.bridgeCells) grow &= ~cellsWithOffsetIn(g.ownWithNeighbour, q, r);
     }
-    return newSnake | grow;
+    return grow;
+}
+
+// All anchor cells where orientation `o` may be placed: a new snake, or a grown one.
+inline Bitboard legalAnchors(const Orientation& o, const MoveGenContext& g) {
+    Bitboard newSnake = geometry.allCells;  // every piece cell touches nothing
+    for (int k = 0; k < o.size; k++) newSnake &= cellsWithOffsetIn(g.freeForNewSnake, o.dq[k], o.dr[k]);
+    if (!g.emptyNextToOwn) return newSnake;
+    return newSnake | growingAnchors(o, g);
+}
+
+// Which legal placements forEachLegalMoveIn() lists.
+enum class MoveFilter { ALL, COVERING, GROWING };
+
+// Calls f(move) for every legal placement (not for a pass) in placement-id order; with COVERING,
+// only for the placements that cover at least one cell of `cover`; with GROWING, only for those
+// that grow an own snake.
+template <MoveFilter Filter, class F>
+inline void forEachLegalMoveIn(const Position& pos, Bitboard cover, F&& f) {
+    PieceSet allowed = pos.piecesAllowedNow();
+    if (!allowed) return;
+    MoveGenContext g = moveGenContext(pos);
+    if (Filter == MoveFilter::GROWING && !g.emptyNextToOwn) return;
+    for (int piece = 0; piece < NUM_PIECES; piece++) {
+        if (!hasPiece(allowed, piece)) continue;
+        for (int o = pieceTables.firstOrientation[piece]; o < pieceTables.firstOrientation[piece + 1]; o++) {
+            const Orientation& orientation = pieceTables.orientations[o];
+            Bitboard anchors = Filter == MoveFilter::GROWING ? growingAnchors(orientation, g) : legalAnchors(orientation, g);
+            if constexpr (Filter == MoveFilter::COVERING) {
+                // the anchors at which some cell of the piece lands on `cover`
+                Bitboard covering = 0;
+                if (anchors)
+                    for (int k = 0; k < orientation.size; k++) covering |= cellsWithOffsetIn(cover, orientation.dq[k], orientation.dr[k]);
+                anchors &= covering;
+            }
+            forEachCell(anchors, [&](int anchor) { f(Move{orientation.placementAt[anchor]}); });
+        }
+    }
 }
 
 // Calls f(move) for every legal placement (not for a pass), in placement-id order.
 template <class F>
 inline void forEachLegalMove(const Position& pos, F&& f) {
-    PieceSet allowed = pos.piecesAllowedNow();
-    if (!allowed) return;
-    MoveGenContext g = moveGenContext(pos);
-    for (int piece = 0; piece < NUM_PIECES; piece++) {
-        if (!hasPiece(allowed, piece)) continue;
-        for (int o = pieceTables.firstOrientation[piece]; o < pieceTables.firstOrientation[piece + 1]; o++) {
-            const Orientation& orientation = pieceTables.orientations[o];
-            forEachCell(legalAnchors(orientation, g), [&](int anchor) { f(Move{orientation.placementAt[anchor]}); });
-        }
-    }
+    forEachLegalMoveIn<MoveFilter::ALL>(pos, 0, f);
+}
+
+// The same for only the legal placements that cover at least one cell of `cover`.
+template <class F>
+inline void forEachLegalMoveCovering(const Position& pos, Bitboard cover, F&& f) {
+    forEachLegalMoveIn<MoveFilter::COVERING>(pos, cover, f);
+}
+
+// The same for only the legal placements that grow an own snake.
+template <class F>
+inline void forEachGrowingMove(const Position& pos, F&& f) {
+    forEachLegalMoveIn<MoveFilter::GROWING>(pos, 0, f);
 }
 
 // All legal placements. Empty means the side to move has to pass.
