@@ -6,7 +6,14 @@ same as those of `src/`. Every deterministic output was compared and is identica
 [Verification](#verification)).
 
 `src/` stays the production version: `build.sh`, the UI (`ui/server.js`) and the distributed workers use
-it. Use this folder to understand the code, or as a drop-in replacement; the command line is the same.
+it. Use this folder to understand the code, or in place of `src/`: the command line is the same except for
+the network engine `nn` and the commands that make and check its network, move ranking and arena openings
+(`datagen`, `policygen`, `book`, `nnfeatures`, `policyfeatures`, `nnverify`), which are in `src/` only.
+`nn` is the engine of `engine.hpp` with a network evaluation (int16 AVX2 kernels and accumulators kept
+along the search path), the network's move ranking and exact verdicts on the root moves; a port with
+identical results would be a rewrite of its own, larger than this folder's engine, so this copy keeps the
+default engines `ab` and `mcts`. Here `engine nn` leaves `serve` on its engine, and `arena` stops on `nn`
+as on any unknown engine name.
 
 ```bash
 g++ -O3 -march=native -std=c++20 -pthread -static -o build/snek_readable.exe readable/*.cpp -lws2_32   # Windows (MinGW)
@@ -76,7 +83,7 @@ line of play gets proved one reply at a time, read `parallel_solve.hpp`, then `r
 | `lastPieces` (`-2`: not the last pieces) | `lastPiecesValue` (`false`) |
 | `pPruned`, `pMoves`, `pLast`, `pScans`, `pScanHits` | `profile.threatSkipped`, `.movesListed`, `.lastPieces`, `.threatScans`, `.threatScansFound` |
 | `ParallelSolveResult`, `SolveQuestion` | `RootSolveResult`, `SolveQuestion` (an `enum class`) |
-| `AbSearcher::ab`, `exactKnown`, `AP` | `AlphaBetaSearcher::search`, `exactScore`, `engineParams` |
+| `AbSearcher::ab`, `exactKnown`, `AbSearcher::P` (`AbParams`) | `AlphaBetaSearcher::search`, `exactScore`, `engineParams` (`EngineParams`) |
 | `abAnalyze`, `RootResult`, `AbAnalysis` | `analyzeWithEngine`, `RootMoveResult`, `EngineAnalysis` |
 | `terminalScore` | `finishedGameScore` |
 | `uniqueRootMoves` | `symmetryUniqueMoves` |

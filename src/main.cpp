@@ -10,6 +10,11 @@
 //                              settle every reply of the side to move with refute (see README)
 //   snek uniquemoves <seconds> <top> <threads> <moves...> [-- <move>...]
 //                              the side to move's symmetry-unique moves, best first
+//   snek arena <pairs> <seconds/move> <threads> <engineA> <engineB> [seed]
+//                              engine match, every opening played with both colours
+//   snek datagen, snek policygen, snek book, snek nnfeatures, snek policyfeatures, snek nnverify
+//                              training data, arena openings and checks of the network evaluation and
+//                              its move ranking (nn.hpp, tools/train_nn.py, tools/train_policy.py; see README)
 #include <atomic>
 #include <cstdio>
 #include <filesystem>
@@ -27,6 +32,8 @@
 #include "serve.hpp"
 #include "refute.hpp"
 #include "worker.hpp"
+#include "datagen.hpp"
+#include "nn.hpp"
 
 static uint64_t perft(const Pos& s, int d) {
     if (d == 0 || s.over()) return 1;
@@ -113,38 +120,6 @@ static int oneHandedBest(const Pos& s, int c, uint64_t& budget) {
 }
 
 // ---- training data rows ----------------------------------------------------------
-static std::string hex128(BB b) {
-    char buf[40];
-    snprintf(buf, sizeof buf, "%016llx%016llx", (unsigned long long)(uint64_t)(b >> 64), (unsigned long long)(uint64_t)b);
-    return buf;
-}
-static BB parseHex128(const std::string& h) {
-    BB r = 0;
-    for (char c : h) r = r * 16 + (BB)(c >= '0' && c <= '9' ? c - '0' : c - 'a' + 10);
-    return r;
-}
-// own0_own1_avail0_avail1_stm_ply_passes
-static std::string posStr(const Pos& s) {
-    return hex128(s.own[0]) + "_" + hex128(s.own[1]) + "_" + std::to_string(s.avail[0]) + "_" + std::to_string(s.avail[1]) +
-           "_" + std::to_string(s.stm) + "_" + std::to_string(s.ply) + "_" + std::to_string(s.passes);
-}
-static bool parsePosStr(const std::string& str, Pos& s) {
-    std::vector<std::string> f;
-    size_t i = 0;
-    while (i <= str.size()) {
-        size_t j = str.find('_', i);
-        if (j == std::string::npos) j = str.size();
-        f.push_back(str.substr(i, j - i));
-        i = j + 1;
-    }
-    if (f.size() != 7) return false;
-    s = Pos{};
-    s.own[0] = parseHex128(f[0]); s.own[1] = parseHex128(f[1]);
-    s.avail[0] = (uint8_t)std::stoi(f[2]); s.avail[1] = (uint8_t)std::stoi(f[3]);
-    s.stm = (uint8_t)std::stoi(f[4]); s.ply = (uint8_t)std::stoi(f[5]); s.passes = (uint8_t)std::stoi(f[6]);
-    s.initHash();
-    return true;
-}
 static void printDataHeader() {
     printf("game,ply,stm,value");
     const char* names[] = {"L", "rem", "pieces", "terr", "bestTerr", "bestOwn", "lb", "ub", "fresh", "ends", "liveEnds", "singleOwn", "singleTerr", "comps"};
@@ -834,25 +809,38 @@ int main(int argc, char** argv) {
         }
     } else if (mode == "arena") {
         // engine A vs engine B from random openings (random 1-hex + random reply),
-        // every opening played twice with colours swapped.
+        // every opening played twice with colours swapped. ARENA_BOOK=<file>: the openings of
+        // that book (snek book) instead, pair p taking line ARENA_BOOK_START + p (cyclically).
         int pairs = argc > 2 ? std::atoi(argv[2]) : 10;
         double secs = argc > 3 ? std::atof(argv[3]) : 1;
         int threads = argc > 4 ? std::atoi(argv[4]) : 8;
         std::string A = argc > 5 ? argv[5] : "ab", B = argc > 6 ? argv[6] : "mcts";
         uint64_t seed = argc > 7 ? std::atoll(argv[7]) : 2024;
         int randomPlies = argc > 8 ? std::atoi(argv[8]) : 2;  // random moves at the start of each opening
+        std::vector<std::vector<Move>> book;
+        if (const char* b = getenv("ARENA_BOOK")) book = readBook(b);
+        int bookStart = envInt("ARENA_BOOK_START", 0);
         Solver solver(22);
         Rng rng(seed);
         int winA = 0, winB = 0, draws = 0;
         std::vector<Move> buf;
         for (int p = 0; p < pairs; p++) {
             Pos open = Pos::start();
-            for (int k = 0; k < randomPlies; k++) { open.genMoves(buf); open.play(buf[rng.below((int)buf.size())]); }
+            std::string openRec;  // the opening, so the printed record replays from the start
+            if (!book.empty()) {
+                for (Move m : book[(bookStart + p) % book.size()]) { openRec += moveStr(m) + " "; open.play(m); }
+            } else {
+                for (int k = 0; k < randomPlies; k++) {
+                    open.genMoves(buf);
+                    Move m = buf[rng.below((int)buf.size())];
+                    openRec += moveStr(m) + " ";
+                    open.play(m);
+                }
+            }
             for (int sw = 0; sw < (A == B ? 1 : 2); sw++) {  // identical engines: the swapped game would be the same
                 std::string e[2] = {sw ? B : A, sw ? A : B};
                 Pos s = open;
-                std::string rec = moveStr(Move{}) ;
-                rec.clear();
+                std::string rec = openRec;
                 while (!s.over()) {
                     Analysis a = analyze(s, secs, threads, solver, e[s.stm]);
                     rec += moveStr(a.items[0].mv) + " ";
@@ -869,6 +857,269 @@ int main(int argc, char** argv) {
             }
         }
         printf("FINAL %s %d : %s %d  (draws %d)\n", A.c_str(), winA, B.c_str(), winB, draws);
+    } else if (mode == "datagen" || mode == "policygen") {
+        // snek datagen|policygen <out.csv> <games> <threads> <seconds/move> <seed> [engine] [book]: self-play
+        // training data (datagen.hpp) for the network's value (datagen) or its move ranking (policygen);
+        // engine nn (the default), nn:<net file> or ab; book: one opening (a move list) per line, else random
+        // 1-hex + random reply. Appends to <out.csv>.
+        if (argc < 7) { fprintf(stderr, "usage: snek %s <out.csv> <games> <threads> <seconds/move> <seed> [engine] [book]\n", mode.c_str()); return 1; }
+        DatagenConfig C;
+        C.games = std::atoi(argv[3]);
+        C.threads = std::atoi(argv[4]);
+        C.seconds = std::atof(argv[5]);
+        C.seed = std::atoll(argv[6]);
+        std::string engine = argc > 7 ? argv[7] : "nn";
+        if (argc > 8) C.book = readBook(argv[8]);
+        FILE* out = fopen(argv[2], "ab");
+        if (!out) { fprintf(stderr, "cannot open %s\n", argv[2]); return 1; }
+        fseek(out, 0, SEEK_END);
+        bool empty = ftell(out) == 0;
+        if (mode == "datagen") {
+            if (empty) printDatagenHeader(out);
+            runDatagen(C, out, [&] { return makeEngine(engine); });
+        } else {
+            if (empty) printPolicyHeader(out);
+            runPolicygen(PolicygenConfig{C}, out, [&] { return makeEngine(engine); });
+        }
+        fclose(out);
+    } else if (mode == "book") {
+        // snek book <out> <candidates> <threads> <seconds> <seed> [plies] [lo] [hi]: balanced openings for
+        // arena matches: <plies> random moves (default 3), kept when nn's win probability for the
+        // side to move after <seconds> of search lies in [lo, hi] (default 0.35-0.65). One opening
+        // (a move list) per line, the score after a #.
+        if (argc < 7) { fprintf(stderr, "usage: snek book <out> <candidates> <threads> <seconds> <seed> [plies] [lo] [hi]\n"); return 1; }
+        int candidates = std::atoi(argv[3]), threads = std::atoi(argv[4]);
+        double secs = std::atof(argv[5]);
+        uint64_t seed = std::atoll(argv[6]);
+        int plies = argc > 7 ? std::atoi(argv[7]) : 3;
+        double lo = argc > 8 ? std::atof(argv[8]) : 0.35, hi = argc > 9 ? std::atof(argv[9]) : 0.65;
+        FILE* out = fopen(argv[2], "a");
+        if (!out) { fprintf(stderr, "cannot open %s\n", argv[2]); return 1; }
+        std::atomic<int> next{0}, kept{0};
+        std::mutex mu;
+        std::vector<std::thread> th;
+        for (int w = 0; w < threads; w++)
+            th.emplace_back([&] {
+                auto E = makeEngine("nn");
+                std::vector<Move> buf;
+                for (;;) {
+                    int i = next++;
+                    if (i >= candidates) break;
+                    Rng rng(seed * 1000003 + i);
+                    Pos s = Pos::start();
+                    std::string rec;
+                    for (int k = 0; k < plies && !s.over(); k++) {
+                        s.genMoves(buf);
+                        Move m = buf[rng.below((int)buf.size())];
+                        rec += moveStr(m) + " ";
+                        s.play(m);
+                    }
+                    AbAnalysis r = abAnalyze(s, secs, 1, 1, 64, *E);
+                    double w = scoreToWinProb(r.moves[0].score);
+                    if (w < lo || w > hi) continue;
+                    kept++;
+                    std::lock_guard<std::mutex> lk(mu);
+                    fprintf(out, "%s# %d\n", rec.c_str(), r.moves[0].score);
+                    fflush(out);
+                }
+            });
+        for (auto& t : th) t.join();
+        fclose(out);
+        fprintf(stderr, "kept %d of %d openings\n", kept.load(), candidates);
+    } else if (mode == "nnfeatures") {
+        // snek nnfeatures <in.csv> <out.bin>: the network inputs (nn.hpp) of the position in the pos
+        // column of every row, for tools/train_nn.py. Per row: uint16 count + uint16 inputs for the
+        // side to move's perspective, then the same for the opponent's. <out.bin>.sym: the image of
+        // every input under each of the 12 symmetries (int16 [12][inputs]). Each row ends with the
+        // logistic evaluation of the position (float32), for comparison.
+        std::ifstream in(argv[2]);
+        FILE* out = fopen(argv[3], "wb");
+        if (!in || !out) { fprintf(stderr, "cannot open files\n"); return 1; }
+        std::string line;
+        std::getline(in, line);
+        int ip = -1, col = 0;
+        { std::stringstream ss(line); std::string c; while (std::getline(ss, c, ',')) { if (c == "pos") ip = col; col++; } }
+        if (ip < 0) { fprintf(stderr, "no pos column\n"); return 1; }
+        nn::CM.init();
+        long rows = 0, bad = 0;
+        std::vector<uint16_t> buf;
+        while (std::getline(in, line)) {
+            std::stringstream ss(line); std::string c, ps;
+            for (int k = 0; std::getline(ss, c, ','); k++) if (k == ip) ps = c;
+            Pos s;
+            uint16_t zero = 0;
+            float logit = 0;
+            if (ps.empty() || !parsePosStr(ps, s)) {
+                bad++;
+                fwrite(&zero, 2, 1, out); fwrite(&zero, 2, 1, out); fwrite(&logit, 4, 1, out);
+                continue;
+            }
+            nn::Planes P;
+            nn::planesOf(s, P);
+            for (int p : {(int)s.stm, (int)s.stm ^ 1}) {
+                buf.clear();
+                nn::forEachInput(P, p, [&](int i) { buf.push_back((uint16_t)i); });
+                uint16_t n = (uint16_t)buf.size();
+                fwrite(&n, 2, 1, out);
+                fwrite(buf.data(), 2, n, out);
+            }
+            logit = s.over() ? 0.f : (float)learnedLogit(s);  // the logistic evaluation, for comparison
+            fwrite(&logit, 4, 1, out);
+            rows++;
+        }
+        fclose(out);
+        std::vector<int16_t> sym;
+        nn::inputSymmetries(sym);
+        FILE* fs = fopen((std::string(argv[3]) + ".sym").c_str(), "wb");
+        fwrite(sym.data(), 2, sym.size(), fs);
+        fclose(fs);
+        fprintf(stderr, "%ld rows (%ld unreadable, written empty), %d inputs\n", rows, bad, nn::N_INPUTS);
+    } else if (mode == "policyfeatures") {
+        // snek policyfeatures <in.csv> <out.bin> [policy file]: for tools/train_policy.py, the legal moves of the
+        // position in the pos column of every row: uint64 symmetry-canonical key of the position, uint16 count,
+        // uint16 placement ids (none for an unreadable row or a pass), and with a policy file its int32 logit
+        // of each move (nn::Policy::logits, with the compiled-in network's accumulators). <out.bin>.gid: int32
+        // placements, symmetries and cells, then per placement int16 piece, int16 [12] its image under each
+        // symmetry, uint8 [cells] the input cells it covers, uint8 [cells] those it touches (nn.hpp's order).
+        std::ifstream in(argv[2]);
+        FILE* out = fopen(argv[3], "wb");
+        if (!in || !out) { fprintf(stderr, "cannot open files\n"); return 1; }
+        const nn::Policy* policy = argc > 4 ? nn::loadPolicy(argv[4]) : nullptr;
+        const nn::Net* net = policy ? nn::loadNet("") : nullptr;
+        std::vector<int32_t> logits;
+        std::string line;
+        std::getline(in, line);
+        int ip = -1, col = 0;
+        { std::stringstream ss(line); std::string c; while (std::getline(ss, c, ',')) { if (c == "pos") ip = col; col++; } }
+        if (ip < 0) { fprintf(stderr, "no pos column\n"); return 1; }
+        nn::CM.init();
+        long rows = 0, bad = 0;
+        std::vector<Move> mv;
+        std::vector<uint16_t> gids;
+        while (std::getline(in, line)) {
+            std::stringstream ss(line); std::string c, ps;
+            for (int k = 0; std::getline(ss, c, ','); k++) if (k == ip) ps = c;
+            Pos s;
+            uint64_t key = 0;
+            gids.clear();
+            if (!ps.empty() && parsePosStr(ps, s)) {
+                key = *std::min_element(s.h, s.h + NSYM);  // parsePosStr sets the hashes of all 12 symmetric images
+                if (!s.over()) s.genMoves(mv);
+                else mv.clear();
+                for (Move m : mv) gids.push_back((uint16_t)m.gid);
+                rows++;
+            } else bad++;
+            uint16_t n = (uint16_t)gids.size();
+            fwrite(&key, 8, 1, out);
+            fwrite(&n, 2, 1, out);
+            fwrite(gids.data(), 2, n, out);
+            if (policy && n) {
+                nn::Planes P;
+                nn::planesOf(s, P);
+                nn::Accumulator A;
+                net->refresh(P, A);
+                logits.resize(n);
+                policy->logits(A, P, s.stm, mv.data(), n, logits.data());
+                fwrite(logits.data(), 4, n, out);
+            }
+        }
+        fclose(out);
+        FILE* fg = fopen((std::string(argv[3]) + ".gid").c_str(), "wb");
+        if (!fg) { fprintf(stderr, "cannot write %s.gid\n", argv[3]); return 1; }
+        int32_t hdr[3] = {T.NGID, NSYM, nn::NC};
+        fwrite(hdr, 4, 3, fg);
+        for (int g = 0; g < T.NGID; g++) {
+            const Placement& pl = T.placements[g];
+            int16_t rec[1 + NSYM];
+            rec[0] = pl.piece;
+            for (int t = 0; t < NSYM; t++) rec[1 + t] = (int16_t)T.gidSym[g][t];
+            uint8_t cover[nn::NC] = {}, touch[nn::NC] = {};
+            for (BB b = pl.m; b; b &= b - 1) cover[nn::CM.cellOf[lsb(b)]] = 1;
+            for (BB b = pl.nb & T.VALID; b; b &= b - 1) touch[nn::CM.cellOf[lsb(b)]] = 1;
+            fwrite(rec, 2, 1 + NSYM, fg);
+            fwrite(cover, 1, nn::NC, fg);
+            fwrite(touch, 1, nn::NC, fg);
+        }
+        fclose(fg);
+        fprintf(stderr, "%ld rows (%ld unreadable, written empty), %d placements\n", rows, bad, T.NGID);
+    } else if (mode == "nnverify") {
+        // snek nnverify <games> [seed] [net file]: the network's incremental path against a full
+        // refresh, for every child of every position of <games> random games. A child's planes and
+        // accumulator come from its parent's as the search makes them (with and without the bounds
+        // passed in), along a game whose positions are all reached that way. Prints the children
+        // that differ and a hash of the children's values, and with the network's policy
+        // (nn::policyFor) a hash of its logits of the legal moves of every game position, from the
+        // accumulators reached that way: the hashes compare builds (AVX2 and scalar).
+        int games = argc > 2 ? std::atoi(argv[2]) : 100;
+        uint64_t seed = argc > 3 ? std::atoll(argv[3]) : 1;
+        std::string netFile = argc > 4 ? argv[4] : "";
+        const nn::Net* net = nn::loadNet(netFile);
+        const nn::Policy* policy = nn::policyFor(netFile);
+        long long children = 0, differ = 0, ranked = 0;
+        uint64_t valueHash = 1469598103934665603ULL, policyHash = valueHash;  // FNV-1a over the values in order
+        std::vector<Move> buf;
+        std::vector<int32_t> logits;
+        for (int g = 0; g < games; g++) {
+            Rng rng(seed * 1000003 + g);
+            Pos s = Pos::start();
+            nn::Planes P;
+            nn::Accumulator A;
+            nn::planesOf(s, P);
+            net->refresh(P, A);
+            while (!s.over()) {
+                s.genMoves(buf);
+                if (buf.empty()) {  // a pass keeps the planes (the search copies them)
+                    s.play(Move{});
+                    nn::Planes full;
+                    nn::planesOf(s, full);
+                    differ += !(full == P);
+                    children++;
+                    continue;
+                }
+                if (policy) {
+                    logits.resize(buf.size());
+                    policy->logits(A, P, s.stm, buf.data(), (int)buf.size(), logits.data());
+                    for (int32_t x : logits) policyHash = (policyHash ^ (uint32_t)x) * 1099511628211ULL;
+                    ranked += (long long)buf.size();
+                }
+                Move played = buf[rng.below((int)buf.size())];
+                nn::Planes next;
+                nn::Accumulator nextAcc;
+                for (Move m : buf) {
+                    Pos c = s;
+                    c.play(m);
+                    nn::Planes full;
+                    nn::planesOf(c, full);
+                    nn::Accumulator fullAcc;
+                    net->refresh(full, fullAcc);
+                    int value = net->evaluate(fullAcc, c.stm, c.ply);
+                    int ub[2];
+                    evaluateBounds(c, ub);
+                    bool same = true;
+                    for (const int* bounds : {(const int*)nullptr, (const int*)ub}) {
+                        nn::Planes Q;
+                        nn::planesAfter(s, P, m.pl(), m.piece(), c, Q, bounds);
+                        nn::Delta d;
+                        nn::deltaOf(P, Q, d);
+                        nn::Accumulator Ac;
+                        net->apply(A, d, Ac);
+                        same = same && Q == full && !std::memcmp(&Ac, &fullAcc, sizeof Ac) && net->evaluate(Ac, c.stm, c.ply) == value;
+                        if (!bounds && m == played) next = Q, nextAcc = Ac;
+                    }
+                    differ += !same;
+                    children++;
+                    valueHash = (valueHash ^ (uint32_t)value) * 1099511628211ULL;
+                }
+                s.play(played);
+                P = next;
+                A = nextAcc;
+            }
+        }
+        printf("%lld children of %d games: %lld differ from a full refresh; value hash %016llx", children, games, differ,
+               (unsigned long long)valueHash);
+        if (policy) printf("; policy hash %016llx over %lld moves", (unsigned long long)policyHash, ranked);
+        printf("\n");
+        return differ ? 1 : 0;
     } else if (mode == "info") {
         for (int p = 0; p < NPIECE; p++) printf("%s: %zu placements\n", PNAME[p], T.PL[p].size());
         printf("total placements %d\n", T.NGID);

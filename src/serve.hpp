@@ -90,26 +90,43 @@ static Analysis analyzeMcts(const Pos& s, double seconds, int threads, Solver& s
     return a;
 }
 
-static Analysis analyzeAb(const Pos& s, double seconds, int threads, Solver& solver, int multipv) {
+// The alpha-beta engines: "ab" first tries to solve all root moves (solveAllRoot); "nn" has exact root
+// verdicts of its own instead (AbParams::exactRem).
+static Analysis analyzeAb(const Pos& s, double seconds, int threads, Solver& solver, int multipv, AbEngine& E,
+                          const std::string& name) {
     Analysis a;
     auto t0 = std::chrono::steady_clock::now();
-    if (solveAllRoot(s, seconds * 0.3, solver, a)) return a;
+    if (!E.P.exactRem && solveAllRoot(s, seconds * 0.3, solver, a)) return a;
     double left = seconds - std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-    AbAnalysis r = abAnalyze(s, std::max(0.05, left), threads, multipv);
+    AbAnalysis r = abAnalyze(s, std::max(0.05, left), threads, multipv, 64, E);
     for (auto& m : r.moves) {
         int ex = -9;
-        if (m.exact && m.score >= WIN / 2) ex = 1;
+        if (m.verdict == Verdict::Win) ex = 1;
+        else if (m.verdict == Verdict::Draw) ex = 0;
+        else if (m.verdict == Verdict::Loss) ex = -1;
+        else if (m.exact && m.score >= WIN / 2) ex = 1;
         else if (m.score <= -WIN / 2) ex = -1;
         a.items.push_back({m.mv, m.exact ? 1 : 0, scoreToWinProb(m.exact ? m.display : m.score), ex, m.score});
     }
     a.depth = r.depth;
-    a.engine = "ab";
+    a.engine = name;
     return a;
 }
 
+// The engine of analyze/go, chosen with `engine <name>`: "ab" (the default), "nn" or "mcts".
+// The arena also takes "abhand" ("ab" with the hand-made evaluation), "ab:<weights file>" and
+// "nn:<net file>"; any other name stops the program.
 static std::string g_engine = "ab";
+static bool engineAvailable(const std::string& e) {
+    return e == "ab" || e == "mcts" || (e == "nn" && nn::HAVE_DEFAULT_NET);
+}
 static Analysis analyze(const Pos& s, double seconds, int threads, Solver& solver, const std::string& engine = g_engine, int multipv = 1) {
     if (engine == "mcts") return analyzeMcts(s, seconds, threads, solver);
+    if (isNnEngine(engine)) return analyzeAb(s, seconds, threads, solver, multipv, nnEngine(engine), "nn");
+    if (engine != "ab" && engine != "abhand" && engine.rfind("ab:", 0) != 0) {
+        fprintf(stderr, "unknown engine %s\n", engine.c_str());
+        exit(1);
+    }
     g_handEval = engine == "abhand";
     g_evalSet = 0;
     if (engine.rfind("ab:", 0) == 0) {  // "ab:<weights file>" uses runtime-loaded weights
@@ -120,7 +137,7 @@ static Analysis analyze(const Pos& s, double seconds, int threads, Solver& solve
         }
         g_evalSet = 1;
     }
-    Analysis a = analyzeAb(s, seconds, threads, solver, multipv);
+    Analysis a = analyzeAb(s, seconds, threads, solver, multipv, abEngine(), "ab");
     g_handEval = false;
     g_evalSet = 0;
     return a;
@@ -161,10 +178,13 @@ public:
             out = stateJson();
         } else if (cmd == "analyze" || cmd == "go") {
             double sec = 2;
-            in >> sec;
+            std::string engine;
+            in >> sec >> engine;  // the engine for this command only; the session's engine by default
+            if (engine.empty()) engine = g_engine;
             if (s.over()) { out = "{\"ok\":false,\"error\":\"game over\"}"; }
+            else if (!engineAvailable(engine)) { out = "{\"ok\":false,\"error\":\"unknown engine\"}"; }
             else {
-                Analysis a = analyze(s, sec, threads, solver, g_engine, cmd == "go" ? 1 : 8);
+                Analysis a = analyze(s, sec, threads, solver, engine, cmd == "go" ? 1 : 8);
                 std::ostringstream o;
                 o << "{\"ok\":true,\"exact\":" << (a.exact ? "true" : "false") << ",\"value\":" << a.value
                   << ",\"stm\":" << (int)s.stm << ",\"engine\":\"" << a.engine << "\",\"depth\":" << a.depth << ",\"moves\":[";
@@ -241,7 +261,7 @@ public:
         } else if (cmd == "engine") {
             std::string e;
             in >> e;
-            if (e == "ab" || e == "mcts") g_engine = e;
+            if (engineAvailable(e)) g_engine = e;
             out = "{\"ok\":true,\"engine\":\"" + g_engine + "\"}";
         } else if (cmd == "quit") {
             return "";

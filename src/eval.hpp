@@ -156,9 +156,11 @@ inline bool loadWeights(const std::string& path, int set) {
     return n == NFEAT;
 }
 
-inline void featureVector(const Pos& s, double x[NFEAT]) {
+// ub (optional): each player's snakeBounds upper bound, a by-product of the features
+inline void featureVector(const Pos& s, double x[NFEAT], int* ub = nullptr) {
     PlayerFeat f[2];
     features(s, f, EHEAD[g_evalSet]);
+    if (ub) ub[0] = f[0].ub, ub[1] = f[1].ub;
     const PlayerFeat& a = f[s.stm];
     const PlayerFeat& b = f[s.stm ^ 1];
     auto single = [](const PlayerFeat& p) { return p.singleOwn + std::min(p.rem, p.singleTerr); };
@@ -184,9 +186,9 @@ inline void featureVector(const Pos& s, double x[NFEAT]) {
 // solver-labelled positions (tools/fit_eval.py).
 // Kept out of line: inlined into some callers, the compiler fuses its multiply-adds (FMA) and two
 // near-equal logits can then order moves differently than elsewhere (node counts, never values).
-[[gnu::noinline]] inline double learnedLogit(const Pos& s) {
+[[gnu::noinline]] inline double learnedLogit(const Pos& s, int* ub = nullptr) {
     double x[NFEAT];
-    featureVector(s, x);
+    featureVector(s, x, ub);
     double z = 0;
     for (int i = 0; i < NFEAT; i++) z += EW[g_evalSet][i] * x[i];
     if (g_evalSet == 0) z *= EVAL_PLY_SCALE[std::min<int>(s.ply, 15)];  // early-game calibration
@@ -197,6 +199,12 @@ inline int evaluateHand(const Pos& s, EvalInfo* info = nullptr);
 inline int evaluate(const Pos& s, EvalInfo* info = nullptr) {
     if (g_handEval || info) return evaluateHand(s, info);
     double z = learnedLogit(s);
+    z = std::max(-30.0, std::min(30.0, z));
+    return (int)std::lround(100 * z);
+}
+// The learned evaluation, also giving each player's snake upper bound it computed on the way.
+inline int evaluateBounds(const Pos& s, int ub[2]) {
+    double z = learnedLogit(s, ub);
     z = std::max(-30.0, std::min(30.0, z));
     return (int)std::lround(100 * z);
 }
