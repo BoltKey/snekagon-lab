@@ -99,9 +99,14 @@ inline Analysis analyzeAlphaBeta(const Position& pos, double seconds, int thread
 }
 
 // engine: "ab" (default), "abhand" (alpha-beta with the hand-made evaluation),
-// "ab:<weights file>" (alpha-beta with runtime-loaded weights) or "mcts".
+// "ab:<weights file>" (alpha-beta with runtime-loaded weights) or "mcts". Any other name stops the
+// program; the network engine "nn" of src/ is not part of this copy.
 inline Analysis analyze(const Position& pos, double seconds, int threads, Solver& solver, const std::string& engine, int multipv = 1) {
     if (engine == "mcts") return analyzeMcts(pos, seconds, threads, solver);
+    if (engine != "ab" && engine != "abhand" && engine.rfind("ab:", 0) != 0) {
+        fprintf(stderr, "unknown engine %s\n", engine.c_str());
+        exit(1);
+    }
     useHandMadeEval = engine == "abhand";
     activeWeightSet = 0;
     if (engine.rfind("ab:", 0) == 0) {

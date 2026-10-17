@@ -69,6 +69,11 @@
   <button id="bPass">Pass</button>
   <span>|</span>
   <label>Engine time <select id="secs"><option selected>10</option><option>30</option><option>60</option></select> s</label>
+  <label id="singleEngine" title="alpha-beta: the default engine; network: alpha-beta with a small neural network in its evaluation and move order, which also proves the root moves once at most 10 pieces are left">Engine
+    <select id="eng"><option value="ab" selected>alpha-beta</option><option value="nn">network</option></select></label>
+  <span id="colourEngines" hidden title="While the engine plays both colours, each colour has its own engine, and a position is evaluated by the engine to move">Engines
+    <label><b style="color:var(--p0)">red</b> <select id="eng0"></select></label>
+    <label><b style="color:var(--p1)">blue</b> <select id="eng1"></select></label></span>
   <button id="bGo">Engine move</button>
   <button id="bAn">Analyze</button>
   <button id="bSolve" title="Exact solution (win/draw/loss) within the time limit">Solve</button>
@@ -301,9 +306,9 @@ async function apply(res) {
   return true;
 }
 
-// ---------- live evaluation of the shown position (cached per position) ----------
+// ---------- live evaluation of the shown position (cached per position and engine) ----------
 const LIVE_SECS = 1;
-const evalCache = new Map();  // position key (move list) -> analysis
+const evalCache = new Map();  // evalKey() (move list and engine) -> analysis
 let liveTimer = null, liveSeq = 0, pendingEngine = false, engineNote = null;
 const posKey = () => st.history.map(m => m.s).join(' ');
 function storeAnalysis(k, a) {
@@ -315,7 +320,7 @@ function scheduleLive() {
   clearTimeout(liveTimer);
   if (!st) return;
   if (st.over) { showGameOver(); return; }
-  const k = posKey();
+  const k = evalKey();
   if (evalCache.has(k)) { showAnalysis(evalCache.get(k), false); return; }
   if (!document.getElementById('live').checked) return;
   document.getElementById('anl').textContent = 'Evaluating…';
@@ -323,11 +328,11 @@ function scheduleLive() {
 }
 async function runLive() {
   if (!st || st.over || busy || pendingEngine) return;
-  const k = posKey(), seq = ++liveSeq;
-  const a = await cmd('analyze ' + LIVE_SECS);
+  const k = evalKey(), seq = ++liveSeq;
+  const a = await cmd('analyze ' + LIVE_SECS + ' ' + engineToMove());
   if (!a.ok) return;
   storeAnalysis(k, a);
-  if (seq === liveSeq && st && posKey() === k) showAnalysis(a, false);
+  if (seq === liveSeq && st && evalKey() === k) showAnalysis(a, false);
 }
 function showGameOver() {
   const [a, b] = st.longest;
@@ -352,14 +357,36 @@ async function gotoPly(n) {
   render();
 }
 const secs = () => document.getElementById('secs').value;
+// ---------- the engine, or an engine per colour while the engine plays both colours ----------
+const colourEngines = [document.getElementById('eng0'), document.getElementById('eng1')];
+const colourEngineChosen = [false, false];  // until changed, a colour's engine is the single engine
+const playsBoth = () => document.getElementById('auto0').checked && document.getElementById('auto1').checked;
+// the engine that moves, and evaluates, for the side to move
+const engineToMove = () => playsBoth() ? colourEngines[st.stm].value : document.getElementById('eng').value;
+const evalKey = () => posKey() + ' @' + engineToMove();
+const engineName = v => [...document.getElementById('eng').options].find(o => o.value === v)?.textContent ?? v;
+function syncColourEngines() {
+  const single = document.getElementById('eng');
+  document.getElementById('singleEngine').hidden = playsBoth();
+  document.getElementById('colourEngines').hidden = !playsBoth();
+  colourEngines.forEach((sel, c) => {
+    const keep = colourEngineChosen[c] ? sel.value : single.value;
+    sel.innerHTML = single.innerHTML;
+    sel.value = [...sel.options].some(o => o.value === keep) ? keep : single.value;
+  });
+}
+colourEngines.forEach((sel, c) => sel.onchange = () => { colourEngineChosen[c] = true; scheduleLive(); });
+for (const id of ['auto0', 'auto1'])
+  document.getElementById(id).addEventListener('change', () => { syncColourEngines(); scheduleLive(); });
 async function engineMove() {
   if (busy || !st || st.over) { pendingEngine = false; return; }
   setBusy(true);
-  const preKey = posKey();
-  const res = await cmd('go ' + secs());
+  const preKey = posKey(), cacheKey = evalKey(), engine = engineToMove();
+  const res = await cmd('go ' + secs() + ' ' + engine);
   pendingEngine = false;
-  if (res.ok && res.analysis) storeAnalysis(preKey, res.analysis);
-  if (res.ok) engineNote = { key: preKey + (preKey ? ' ' : '') + res.played.s, text: 'The engine played ' + res.played.s + '.' };
+  if (res.ok && res.analysis) storeAnalysis(cacheKey, res.analysis);
+  const who = playsBoth() ? `The ${engineName(engine)} engine` : 'The engine';
+  if (res.ok) engineNote = { key: preKey + (preKey ? ' ' : '') + res.played.s, text: `${who} played ${res.played.s}.` };
   await apply(res);
   setBusy(false);
   maybeAutoVerify();
@@ -368,21 +395,22 @@ async function engineMove() {
 async function analyzeNow() {
   if (busy || !st || st.over) return;
   setBusy(true);
-  const k = posKey();
-  const a = await cmd('analyze ' + secs());
+  const k = evalKey();
+  const a = await cmd('analyze ' + secs() + ' ' + engineToMove());
   setBusy(false);
-  if (a.ok) { storeAnalysis(k, a); if (posKey() === k) showAnalysis(a, false); }
+  if (a.ok) { storeAnalysis(k, a); if (evalKey() === k) showAnalysis(a, false); }
 }
 function maybeAuto() {
   if (!st || st.over) return;
   if (document.getElementById('auto' + st.stm).checked) { pendingEngine = true; clearTimeout(liveTimer); setTimeout(engineMove, 50); }
 }
 function valTxt(v) { return v === 1 ? '<span class="win">win</span>' : v === -1 ? '<span class="loss">loss</span>' : '<span class="drawc">draw</span>'; }
+const isAlphaBeta = (engine) => engine === 'ab' || engine === 'nn';
 function fmtScore(m) {
   if (m.exact === 1) return '<span class="win">win</span>';
   if (m.exact === -1) return '<span class="loss">loss</span>';
   if (m.exact === 0) return '<span class="drawc">draw</span>';
-  if (m.score !== undefined && lastAnalysis && lastAnalysis.engine === 'ab')
+  if (m.score !== undefined && lastAnalysis && isAlphaBeta(lastAnalysis.engine))
     return (m.n ? '' : '<span class="muted">≤ </span>') + `${(m.wr * 100).toFixed(0)}%`;
   return `${(m.wr * 100).toFixed(1)}%`;
 }
@@ -397,10 +425,10 @@ function showAnalysis(a, played) {
     head = `Solved: ${valTxt(v)} for ${color}`;
     const vRed = mover === 0 ? v : -v;
     p0 = vRed === 1 ? 1 : vRed === -1 ? 0 : 0.5;
-  } else if (a.engine === 'ab') {
+  } else if (isAlphaBeta(a.engine)) {
     const wr = b ? b.wr : 0.5;
     p0 = mover === 0 ? wr : 1 - wr;
-    head = `Alpha-beta, depth ${a.depth}: ${b.exact === 1 ? 'a forced win' : b.exact === -1 ? 'a lost position' : fmtScore(b) + ' chance to win'} for ${color}`;
+    head = `Alpha-beta, depth ${a.depth}: ${b.exact === 1 ? 'a forced win' : b.exact === -1 ? 'a lost position' : b.exact === 0 ? 'a draw' : fmtScore(b) + ' chance to win'} for ${color}`;
   } else {
     const wr = b ? b.wr : 0.5;
     p0 = mover === 0 ? wr : 1 - wr;
@@ -413,7 +441,7 @@ function showAnalysis(a, played) {
   const el = document.getElementById('anl');
   const note = engineNote && st && engineNote.key === posKey() ? engineNote.text + ' ' : '';
   el.innerHTML = `<div>${note}${head}</div>
-    <div class="muted">${a.engine === 'ab' ? 'The chance to win for the side to move after each move (learned evaluation + search); “≤” = only an upper bound (the move is worse than the best one).' : ''}</div>
+    <div class="muted">${isAlphaBeta(a.engine) ? 'The chance to win for the side to move after each move (learned evaluation + search); “≤” = only an upper bound (the move is worse than the best one).' : ''}</div>
     <table><tr><th>#</th><th>move</th><th>value</th><th>${a.engine === 'mcts' ? 'visits' : ''}</th></tr>${rows}</table>`;
   el.querySelectorAll('tr.mv').forEach(tr => {
     const m = a.moves[+tr.dataset.k].m;
@@ -424,6 +452,7 @@ function showAnalysis(a, played) {
 }
 
 document.getElementById('live').onchange = () => scheduleLive();
+document.getElementById('eng').onchange = async (e) => { await cmd('engine ' + e.target.value); syncColourEngines(); scheduleLive(); };
 document.getElementById('bNew').onclick = async () => { setBusy(true); game = []; await apply(await cmd('new')); setBusy(false); maybeAuto(); };
 document.getElementById('bFirst').onclick = () => gotoPly(0);
 document.getElementById('bBack').onclick = () => gotoPly(st.history.length - 1);
@@ -598,12 +627,15 @@ document.getElementById('bJobShow').onclick = async () => {
     const cur = await fetchJob();
     if (cur.running) { runningMoves = cur.moves; pollJob(); }
   }
-  await cmd('engine ab');  // the alpha-beta engine (the old MCTS one stays in the protocol: `engine mcts`)
+  // alpha-beta or network (the old MCTS engine stays in the protocol: `engine mcts`)
+  await cmd('engine ' + document.getElementById('eng').value);
+  syncColourEngines();
   // ?moves=1:60+4B:16,27,28,39+...  opens that position (the engine stays off for both colours)
   const pm = new URLSearchParams(location.search).get('moves');
   if (pm) {
     document.getElementById('auto0').checked = false;
     document.getElementById('auto1').checked = false;
+    syncColourEngines();
     game = [];
     const r = await cmd('set ' + pm.trim());
     if (r.ok) { await apply(r); return; }

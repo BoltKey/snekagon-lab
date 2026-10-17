@@ -6,8 +6,9 @@
 //   play <move>...          append moves                               -> state
 //   undo                    take back the last move                    -> state
 //   state                                                              -> state
-//   analyze [seconds]       analyse, up to 8 moves with exact scores   -> analysis
-//   go [seconds]            analyse and play the best move             -> {played, analysis, state}
+//   analyze [sec [engine]]  analyse, up to 8 moves with exact scores   -> analysis
+//   go [sec [engine]]       analyse and play the best move             -> {played, analysis, state}
+//                           (engine: for this command only; the session's engine by default)
 //   solve [seconds]         parallel exact solve                       -> value per root move
 //   children <move>...      symmetry-unique moves of that position, best first by the learned
 //                           evaluation (used by the distributed-solve coordinator)
@@ -72,7 +73,7 @@ class ServedGame {
         if (command == "engine") {
             std::string name;
             in >> name;
-            if (name == "ab" || name == "mcts") engine = name;
+            if (isEngine(name)) engine = name;
             return "{\"ok\":true,\"engine\":\"" + engine + "\"}";
         }
         return "{\"ok\":false,\"error\":\"unknown command\"}";
@@ -128,11 +129,17 @@ class ServedGame {
         return o.str();
     }
 
+    static bool isEngine(const std::string& name) { return name == "ab" || name == "mcts"; }
+
+    // analyze|go <seconds> [engine]: the engine for this command only, the session's engine by default
     std::string analyzeCommand(bool playBest, std::istringstream& in) {
         double seconds = 2;
-        in >> seconds;
+        std::string name;
+        in >> seconds >> name;
+        if (name.empty()) name = engine;
         if (pos.isOver()) return GAME_OVER;
-        Analysis a = analyze(pos, seconds, threads, solver, engine, playBest ? 1 : 8);
+        if (!isEngine(name)) return "{\"ok\":false,\"error\":\"unknown engine\"}";
+        Analysis a = analyze(pos, seconds, threads, solver, name, playBest ? 1 : 8);
         std::ostringstream o;
         o << "{\"ok\":true,\"exact\":" << jsonBool(a.exact) << ",\"value\":" << a.value << ",\"stm\":" << (int)pos.sideToMove
           << ",\"engine\":\"" << a.engine << "\",\"depth\":" << a.depth << ",\"moves\":[";
